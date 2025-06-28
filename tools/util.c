@@ -30,7 +30,7 @@ static void usage(const char *program)
 	printf("  -W pixel width\n");
 	printf("  -v increase level of verbosity\n");
 	printf("\n");
-	printf("  Eg. %s -i ../../dwts-master2880.yuv\n\n", program);
+	printf("  Eg. %s -i ../../dwts-master2880.yuv -W 1280 -H 720 [-v]\n\n", program);
 }
 
 int main(int argc, char *argv[])
