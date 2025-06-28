@@ -27,10 +27,9 @@
         "ltmain.sh": true,
         "missing": true,
         "depcomp": true,
+        "**/libklsmpte2064.pc": true,
         // Binaries that we generate
-        "tools/klvanc_util": true,
-        "tools/klvanc_capture": true,
-        "tools/klvanc_smpte2038": true,
+        "tools/klsmpte2064_util": true,
     },
     "files.associations": {
         "errno.h": "c",
