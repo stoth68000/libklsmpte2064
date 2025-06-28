@@ -23,4 +23,4 @@ src/libklsmpte2064_la-*.lo
 src/libklsmpte2064.pc
 doxygen/html
 tools/klsmpte2064_util
-
+.DS_Store
