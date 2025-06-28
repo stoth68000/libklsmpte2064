@@ -10,6 +10,8 @@ encapsulated into "containers". The user is responsible for disributing these. T
 
 For audio support, the framework support stereo planar signed 16bit 48KHz only.
 
+Audio is still work in progress.
+
 Beyond this Readme.MD file, API level documentation can be generated via
 Doxygen (see "Making Documentation" section below).
 
