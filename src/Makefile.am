@@ -3,6 +3,7 @@ AUTOMAKE_OPTIONS = foreign
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libklsmpte2064.pc
+libklsmpte2064_la_LDFLAGS  = -Wl,--no-as-needed -lm
 
 lib_LTLIBRARIES = libklsmpte2064.la
 

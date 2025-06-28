@@ -12,6 +12,8 @@ AC_CONFIG_FILES([src/libklsmpte2064.pc:src/libklsmpte2064.pc.in])
 # Checks for programs.
 AC_PROG_CC
 AC_LANG([C])
+AC_PROG_CC_C99
+
 #AC_LANG_STANDARD([c99])
 if test `uname -s` = "Darwin"
 then
