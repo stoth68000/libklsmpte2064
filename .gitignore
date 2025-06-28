@@ -11,6 +11,7 @@ config.log
 config.status
 config.sub
 configure
+configure~
 depcomp
 install-sh
 libtool
@@ -19,6 +20,7 @@ m4/
 missing
 libklsmpte2064.la
 src/libklsmpte2064_la-*.lo
+src/libklsmpte2064.pc
 doxygen/html
 tools/klsmpte2064_util
 
