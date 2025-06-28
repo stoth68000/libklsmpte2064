@@ -26,11 +26,11 @@ enum klsmpte2064_audio_type_e
  * @brief	    Push an audio frame into the solution for processing.
  *              Support for 48KHz signed 
  * @param[in]	void * - A previously allocated content/handle
- * @param[in]	const uint8_t ** - list of points into audio planes.
+ * @param[in]	const uint16_t ** - list of points into audio planes.
  * @return      0 - Success
  * @return      < 0 - Error
  */
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, const uint8_t *planes[], uint32_t planeCount, uint32_t sampleCount);
+int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
 
 #ifdef __cplusplus
 };

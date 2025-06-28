@@ -44,18 +44,18 @@ static inline float pseudo_abs_float(float sample)
 }
 
 /* 5.3.6 - Decimator - on one mono buffer */
-static void _audio_decimator(struct ctx_s *ctx, uint32_t sampleCount, float *comp_bit, uint8_t *result)
+static void _audio_decimator(struct ctx_s *ctx, uint32_t sampleCount, uint8_t *comp_bit, uint8_t *result)
 {
-	const struct tbl3_s *t3 = lookupTable3(59.94); /* TODO */
+	ctx->t3 = lookupTable3(59.94); /* TODO */
 
 	/* decimate envelope/mean comparison */
-	for (uint32_t i = 0; i < sampleCount; i += t3->decimator_factor) {
-		result[i / t3->decimator_factor] = comp_bit[i];
+	for (uint32_t i = 0; i < sampleCount; i += ctx->t3->decimator_factor) {
+		result[i / ctx->t3->decimator_factor] = comp_bit[i];
 	}
 }
 
 /* 5.3.5 - Envelope/Mean Comparator - on two mono buffers */
-static void _audio_envelope_mean_comparator(struct ctx_s *ctx, uint32_t sampleCount, float *Es, float *Ms, float *comp_bit)
+static void _audio_envelope_mean_comparator(struct ctx_s *ctx, uint32_t sampleCount, float *Es, float *Ms, uint8_t *comp_bit)
 {
 	/* Extract fingerprint by comparing envelope with local mean */
 	for (uint32_t i = 0; i < sampleCount; i++) {
@@ -68,44 +68,41 @@ static void _audio_envelope_mean_comparator(struct ctx_s *ctx, uint32_t sampleCo
 }
 
 /* 5.3.4 - Local Mean Detector - on a mono buffer */
-static void _audio_local_mean_detector(struct ctx_s *ctx, uint32_t sampleCount, float *ibuf, float *obuf)
+static void _audio_local_mean_detector(struct ctx_s *ctx, uint32_t sampleCount, float *a_wav, float *Ms)
 {
-	float *a_wav = ibuf;
-	float Km = 8192;
-	float *Ms = obuf;
+	float Km = 8192; // local mean detector IIR filter coefficient
 
-	*(Ms + 0) = 0;
+	Ms[0] = 0; // initialize first value to a known state
 
+	/* Local mean IIR filter */
 	for (uint32_t i = 1; i < sampleCount; i++) {
 		Ms[i] = a_wav[i] + Ms[i - 1] - floor(Ms[i - 1] / Km);
 	}
 }
 
 /* 5.3.3 - Envelope Detector - on a mono buffer */
-static void _audio_envelope_detector(struct ctx_s *ctx, uint32_t sampleCount, float *ibuf, float *obuf)
+static void _audio_envelope_detector(struct ctx_s *ctx, uint32_t sampleCount, float *a_wav, float *Es)
 {
-	float Km = 8192;
-	float Ke = 1024;
-	float *Es = obuf;
-	float *a_wav = ibuf;
+	float Km = 8192; // local mean detector IIR filter coefficient
+	float Ke = 1024; // Envelope detector IIR filter coefficient
 
-	*(Es + 0) = 0;
+	Es[0] = 0;
 
-	for (uint32_t i = 1; i < sampleCount - 1; i++) {
-		Es[i] = (a_wav[i] * Km / Ke) + Es[i + 1] - floor(Es[i - 1] / Ke);
+	for (uint32_t i = 1; i < sampleCount; i++) {
+		Es[i] = (a_wav[i] * Km / Ke) + Es[i - 1] - floor(Es[i - 1] / Ke);
 	}
 }
 
 /* 5.3.2 - Pseudo Absolute Value - on a mono buffer */
-static void _audio_pseudo_abs_value(struct ctx_s *ctx, uint32_t sampleCount, float *buf)
+static void _audio_pseudo_abs_value(struct ctx_s *ctx, uint32_t sampleCount, float *a_wav)
 {
 	for (uint32_t i = 0; i < sampleCount; i++) {
-		buf[i] = pseudo_abs_float(buf[i]);
+		a_wav[i] = pseudo_abs_float(a_wav[i]);
 	}
 }
 
 /* 5.3.1 - Downmix - convert from S16 to float in the working buffer */
-static int _audio_downmix_stereo(struct ctx_s *ctx,	const uint8_t *planes[], uint32_t planeCount,
+static int _audio_downmix_stereo(struct ctx_s *ctx,	const int16_t *planes[], uint32_t planeCount,
 	uint32_t sampleCount, float *buf)
 {
 	const int16_t *lft = (const int16_t *)planes[0];
@@ -113,8 +110,8 @@ static int _audio_downmix_stereo(struct ctx_s *ctx,	const uint8_t *planes[], uin
 
 	for (uint32_t i = 0; i < sampleCount; i++) {
 
-		float ls = pcm16_to_float(*(lft + i));
-		float rs = pcm16_to_float(*(rgt + i));
+		float ls = pcm16_to_float(lft[i]);
+		float rs = pcm16_to_float(rgt[i]);
 
 		buf[i] = ((ls * 0.7071) + (rs * 0.7071)) / 2;
 	}
@@ -123,7 +120,7 @@ static int _audio_downmix_stereo(struct ctx_s *ctx,	const uint8_t *planes[], uin
 }
 
 static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
-	const uint8_t *planes[], uint32_t planeCount, uint32_t sampleCount, float *buf)
+	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount, float *buf)
 {
 	switch (type) {
 	case AUDIOTYPE_STEREO_S16P:
@@ -134,7 +131,7 @@ static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 }
 
 int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
-	const uint8_t *planes[], uint32_t planeCount, uint32_t sampleCount)
+	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx || !planeCount) {
@@ -160,6 +157,10 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	if (!Ms) {
 		return -ENOMEM;
 	}
+	uint8_t *comp_bit = malloc(sampleCount * sizeof(uint8_t));
+	if (!comp_bit) {
+		return -ENOMEM;
+	}
 	uint8_t *result = malloc(sampleCount * sizeof(uint8_t));
 	if (!result) {
 		return -ENOMEM;
@@ -182,16 +183,20 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	_audio_local_mean_detector(ctx, sampleCount, bufA, Ms);
 
 	/* Step 5.3.5 - Envelope/Mean Comparator */
-	_audio_envelope_mean_comparator(ctx, sampleCount, Es, Ms, bufA);
+	_audio_envelope_mean_comparator(ctx, sampleCount, Es, Ms, comp_bit);
 
 	/* Step 5.3.6 - Decimator */
-	_audio_decimator(ctx, sampleCount, bufA, result);
-	for (int i = 0; i < sampleCount; i++) {
+	_audio_decimator(ctx, sampleCount, comp_bit, result);
+
+#if 0
+	printf("a fp: ");
+	for (int i = 0; i < ctx->t3->decimator_factor; i++) {
 		printf("%d", result[i]);
 	}
 	printf("\n");
-
+#endif
 	free(result);
+	free(comp_bit);
 	free(Ms);
 	free(Es);
 	free(bufA);

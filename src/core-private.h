@@ -56,6 +56,7 @@ struct ctx_s
 
 	const struct tbl1_s *t1;
 	const struct tbl2_s *t2;
+	const struct tbl3_s *t3;
 
     /* 5.2.2 Windowing Sub-Sampling */
 #define WSS_ROWS 16

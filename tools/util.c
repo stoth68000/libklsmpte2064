@@ -10,7 +10,8 @@
 struct tool_ctx_s
 {
 	int verbose;
-	char *iname;
+	char *ivname;
+	char *ianame;
 	uint32_t width;
 	uint32_t height;
 	uint32_t progressive;
@@ -26,11 +27,12 @@ static void usage(const char *program)
 	printf("Read consecutive YUV420P frames of video from disk, generate video fingerprints.\n");
 	printf("Usage: %s\n", program);
 	printf("  -i yuv420p.yuv filename\n");
+	printf("  -Y audioS32le.bin filename (interleaved only L / R / L / R)\n");
 	printf("  -H pixel height\n");
 	printf("  -W pixel width\n");
 	printf("  -v increase level of verbosity\n");
 	printf("\n");
-	printf("  Eg. %s -i ../../dwts-master2880.yuv -W 1280 -H 720 [-v]\n\n", program);
+	printf("  Eg. %s -i ../../dwts-master2880.yuv -W 1280 -H 720 -I ../../audio-ch2-s32-soccer.bin [-v]\n\n", program);
 }
 
 int main(int argc, char *argv[])
@@ -44,14 +46,14 @@ int main(int argc, char *argv[])
 
 	int ch;
 
-	while ((ch = getopt(argc, argv, "?hi:vB:H:S:W:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:vB:H:I:S:W:Y:")) != -1) {
 		switch (ch) {
 		case 'i':
-			if (ctx->iname) {
-				free(ctx->iname);
-				ctx->iname = NULL;
+			if (ctx->ivname) {
+				free(ctx->ivname);
+				ctx->ivname = NULL;
 			}
-			ctx->iname = strdup(optarg);
+			ctx->ivname = strdup(optarg);
 			break;
 		case 'B':
 			ctx->bitdepth = atoi(optarg);
@@ -62,6 +64,13 @@ int main(int argc, char *argv[])
 			break;
 		case 'H':
 			ctx->height = atoi(optarg);
+			break;
+		case 'I':
+			if (ctx->ianame) {
+				free(ctx->ianame);
+				ctx->ianame = NULL;
+			}
+			ctx->ianame = strdup(optarg);
 			break;
 		case 'S':
 			ctx->stride = atoi(optarg);
@@ -79,30 +88,54 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (ctx->iname == NULL) {
+	if (ctx->ivname == NULL) {
 		usage(argv[0]);
 		exit(1);
 	}
 
 	int frame_size = (ctx->height * ctx->stride * 3) / 2;
 
-	printf("Input: %s\n", ctx->iname);
+	printf("Input Video: %s\n", ctx->ivname);
 	printf("Framesize: %d\n", frame_size);
-	
+	if (ctx->ianame) {
+		printf("Input Audio: %s\n", ctx->ianame);
+	}
+
 	if (!ctx->width || !ctx->height) {
 		usage(argv[0]);
 		exit(0);
 	}
-	
+
+	int channels = 2;
+	int aSampleCount = 800;
+	int audioIsize = channels * sizeof(int32_t) * aSampleCount;
+	int audioPsize = channels * sizeof(int16_t) * aSampleCount;
+	int32_t *audioI = malloc(audioIsize);
+	if (!audioI) {
+		perror("malloc");
+		exit(0);
+	}
+	int16_t *audioP = malloc(audioPsize);
+	if (!audioP) {
+		perror("malloc");
+		exit(0);
+	}
+
 	uint8_t *lumaplane = malloc(frame_size);
 	if (!lumaplane) {
 		perror("malloc");
 		exit(0);
 	}
 
-	FILE *fh = fopen(ctx->iname, "rb");
-	if (!fh) {
-		perror("file open");
+	FILE *fhv = fopen(ctx->ivname, "rb");
+	if (!fhv) {
+		perror("file open video");
+		exit(0);
+	}
+
+	FILE *fha = fopen(ctx->ianame, "rb");
+	if (!fha) {
+		perror("file open audio");
 		exit(0);
 	}
 
@@ -125,13 +158,42 @@ int main(int argc, char *argv[])
 
 	uint8_t section[512];
 
-	while (!feof(fh)) {
-		int l = fread(lumaplane, 1, frame_size, fh);
+	while (1) {
+		int l = fread(lumaplane, 1, frame_size, fhv);
 		if (l < frame_size) {
 			break;
 		}
+		if (feof(fhv)) {
+			break;
+		}
+		l = fread(audioI, 1, audioIsize, fha);
+		if (l < audioIsize) {
+			break;
+		}
+		if (feof(fha)) {
+			break;
+		}
 
+		/* VIDEO */
 		if (klsmpte2064_video_push(ctx->hdl, lumaplane) < 0) {
+			fprintf(stderr, "Unable to push luma plane, aborting\n");
+			exit(0);
+		}
+
+		/* Audio */
+		const int16_t *planes[2] = { &audioP[0], &audioP[aSampleCount] };
+
+		/* Convert from interleaved to planar */
+		for (int i = 0; i < aSampleCount; i++) {
+			int32_t l = audioI[(i * 2) + 0] >> 16;
+			audioP[i] = (int16_t)l;
+		}
+		for (int i = 0; i < aSampleCount; i++) {
+			int32_t r = audioI[(i * 2) + 1] >> 16;
+			audioP[aSampleCount + i] = (int16_t)r;
+		}
+
+		if (klsmpte2064_audio_push(ctx->hdl, AUDIOTYPE_STEREO_S16P, &planes[0], 2, aSampleCount) < 0) {
 			fprintf(stderr, "Unable to push luma plane, aborting\n");
 			exit(0);
 		}
@@ -153,9 +215,17 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Shutdown\n");
-	fclose(fh);
+
+	if (fhv) {
+		fclose(fhv);
+	}
+	if (fha) {
+		fclose(fha);
+	}
 
 	klsmpte2064_context_free(ctx->hdl);
+	free(audioP);
+	free(audioI);
 	free(lumaplane);
 	free(ctx);
 	return 0;
