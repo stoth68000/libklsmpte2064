@@ -2,7 +2,7 @@
 
 libklsmpte2064 is a library that generates SMPTE2064 media hashes.
 Its in its early development stages. Progressive video is supported.
-Inputs are restructued to the YUV420p colorspace, common to
+Inputs are restrictued to the YUV420p colorspace, common to
 many video development projects.
 
 Beyond this Readme.MD file, API level documentation can be generated via
