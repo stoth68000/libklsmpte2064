@@ -28,13 +28,22 @@
         "missing": true,
         "depcomp": true,
         "**/libklsmpte2064.pc": true,
+        "**/configure~": true,
         // Binaries that we generate
         "tools/klsmpte2064_util": true,
     },
     "files.associations": {
         "errno.h": "c",
         "ios": "c",
-        "csc.h": "c"
+        "csc.h": "c",
+        "__hash_table": "c",
+        "array": "c",
+        "complex": "c",
+        "type_traits": "c",
+        "limits": "c",
+        "ratio": "c",
+        "variant": "c",
+        "__locale": "c"
     }
 
 }
