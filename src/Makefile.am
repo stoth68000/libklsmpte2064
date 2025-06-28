@@ -7,6 +7,7 @@ pkgconfig_DATA = libklsmpte2064.pc
 lib_LTLIBRARIES = libklsmpte2064.la
 
 libklsmpte2064_la_SOURCES  = core.c
+libklsmpte2064_la_SOURCES += core-audio.c
 libklsmpte2064_la_SOURCES += core-video.c
 libklsmpte2064_la_SOURCES += core-encapsulation.c
 
@@ -22,4 +23,5 @@ libklsmpte2064_includedir = $(includedir)/libklsmpte2064
 libklsmpte2064_include_HEADERS  = libklsmpte2064/klsmpte2064.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-encapsulation.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-video.h
+libklsmpte2064_include_HEADERS += libklsmpte2064/core-audio.h
 

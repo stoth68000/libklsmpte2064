@@ -33,6 +33,25 @@ struct tbl2_s
 };
 const struct tbl2_s *lookupTable2(int progressive, int width, int height);
 
+struct tbl3_s
+{
+	double video_frame_rate;
+	int decimator_factor;
+	int bytes_per_x_frames[2];
+	int bitrate_per_second;
+} tbl3[] = {
+	{ 23.98, 52, { 77, 16 }, 923, },
+	{ 29.97, 52, { 77, 20 }, 923, },
+	{    50, 52, { 77, 32 }, 923, },
+	{ 59.94, 52, { 77, 40 }, 923, },
+	{    24, 50, { 80, 16 }, 960, },
+	{    25, 50, { 96, 20 }, 960, },
+	{    30, 50, { 80, 20 }, 960, },
+	{    50, 50, { 96, 40 }, 960, },
+	{    60, 50, { 80, 40 }, 960, },
+};
+const struct tbl3_s *lookupTable3(double video_frame_rate);
+
 struct ctx_s
 {
     int verbose;
