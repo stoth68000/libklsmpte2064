@@ -26,7 +26,10 @@ enum klsmpte2064_audio_type_e
  * @brief	    Push an audio frame into the solution for processing.
  *              Support for 48KHz signed 
  * @param[in]	void * - A previously allocated content/handle
- * @param[in]	const uint16_t ** - list of points into audio planes.
+ * @param[in]	enum klsmpte2064_audio_type_e - Eg. AUDIOTYPE_STEREO_S16P
+ * @param[in]	const uint16_t ** - planes. A list of points into audio planes.
+ * @param[in]	uint32_t - planeCount
+ * @param[in]	uint32_t - Samples (per channel) in the planes. Should never exceed 2200. Typically 800/801 for 59.94.
  * @return      0 - Success
  * @return      < 0 - Error
  */
