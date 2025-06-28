@@ -25,4 +25,5 @@ libklsmpte2064_include_HEADERS  = libklsmpte2064/klsmpte2064.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-encapsulation.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-video.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-audio.h
+libklsmpte2064_include_HEADERS += libklsmpte2064/core.h
 
