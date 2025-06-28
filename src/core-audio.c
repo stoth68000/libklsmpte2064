@@ -7,6 +7,21 @@
 #include <string.h>
 #include <math.h>
 
+struct tbl3_s tbl3[] = {
+	{ 23.98, 52, { 77, 16 }, 923, },
+	{ 29.97, 52, { 77, 20 }, 923, },
+#if 0
+	/* No support for 48 / 1.001 */
+	{ 47.95, 52, { 77, 32 }, 923, },
+#endif
+	{ 59.94, 52, { 77, 40 }, 923, },
+	{    24, 50, { 80, 16 }, 960, },
+	{    25, 50, { 96, 20 }, 960, },
+	{    30, 50, { 80, 20 }, 960, },
+	{    50, 50, { 96, 40 }, 960, },
+	{    60, 50, { 80, 40 }, 960, },
+};
+
 const struct tbl3_s *lookupTable3(double video_frame_rate)
 {
 	for (int i = 0; i < (sizeof(tbl3) / sizeof(struct tbl3_s)); i++) {
@@ -171,6 +186,10 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 
 	/* Step 5.3.6 - Decimator */
 	_audio_decimator(ctx, sampleCount, bufA, result);
+	for (int i = 0; i < sampleCount; i++) {
+		printf("%d", result[i]);
+	}
+	printf("\n");
 
 	free(result);
 	free(Ms);
