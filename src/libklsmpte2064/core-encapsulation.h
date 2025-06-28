@@ -17,8 +17,9 @@ extern "C" {
 #endif
 
 /**
- * @brief	    Create a section describing all of the audio and video fingerprints.
- * @param[in]	void * - handle
+ * @brief	    Create a 'container' section describing all of the audio and video fingerprints.
+ *              This is then typically embeded into a ISO13818-1 PES or other means of distribution.
+ * @param[in]	void * - A previously allocated content/handle
  * @param[in]   uint8_t * - user supplied buffer a minimum of 256 bytes long
  * @param[in]   uint32_t - buffer length in bytes
  * @param[out]  uint32_t * - number of bufer bytes used

@@ -16,6 +16,13 @@
 extern "C" {
 #endif
 
+/**
+ * @brief	    Push a video frame into the solution for processing.
+ * @param[in]	void * - A previously allocated content/handle
+ * @param[in]	const uint8_t * - The luma plane.
+ * @return      0 - Success
+ * @return      < 0 - Error
+ */
 int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
 
 #ifdef __cplusplus

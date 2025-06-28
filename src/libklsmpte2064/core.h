@@ -30,11 +30,20 @@ int klsmpte2064_context_alloc(void **hdl,
 	uint32_t stride,
 	uint32_t bitdepth);
 
+
+/**
+ * @brief	    Raise (1) or lower (0) the overal level of console debug from the library.
+ *              The default is zero, no console output under normal operating conditions.
+ * @param[in]	void * - A previously allocated content/handle
+ * @param[in]	int - verbosity level (0 or 1).
+ * @return      0 - Success
+ * @return      < 0 - Error
+ */
 int klsmpte2064_context_set_verbose(void *hdl, int level);
 
 /**
  * @brief	    Free a previously allocated handle.
- * @param[out]	void * - handle
+ * @param[in]	void * - A previously allocated content/handle
  */
 void klsmpte2064_context_free(void *hdl);
 
