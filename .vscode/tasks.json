@@ -1,0 +1,109 @@
+{
+    "version": "2.0.0",
+    "command": "bash",
+    "args": [
+        "-c"
+    ],
+    "echoCommand": true,
+    "tasks": [
+        {
+            "label": "make",
+            "type": "shell",
+            "args": [
+                "-c",
+                "make"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "make clean (tools)",
+            "type": "shell",
+            "args": [
+                "-c",
+                "make",
+                "-C",
+                "tools",
+                "clean"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "make clean (src)",
+            "type": "shell",
+            "args": [
+                "-c",
+                "make",
+                "-C",
+                "src",
+                "clean"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "run util usage",
+            "type": "shell",
+            "args": [
+                "-c",
+                "tools/iso13818_util",
+                "-h"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "configure",
+            "type": "shell",
+            "args": [
+                "-c",
+                "./configure --enable-shared=no"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "autogen.sh --build",
+            "type": "shell",
+            "args": [
+                "-c",
+                "./autogen.sh --build"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Doxygen - Create Docs",
+            "type": "shell",
+            "args": [
+                "-c",
+                "make docs"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "_id": "build",
+                "isDefault": false
+            }
+        }
+    ]
+}
+

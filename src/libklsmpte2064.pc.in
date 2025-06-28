@@ -1,0 +1,12 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libklsmpte2064
+Description: Kernel Labs Library implementing SMPTE2064
+Version: @VERSION@
+Libs: -L${libdir} -lklsmpte2064
+Libs.private:  -lpthread -lstdc++ -lm -lc
+Cflags: -I${includedir} -I${includedir}/libklsmpte2064
+URL: https://github.com/stoth68000/libklsmpte2064.git
