@@ -29,7 +29,7 @@ static inline float pseudo_abs_float(float sample)
 }
 
 /* 5.3.6 - Decimator - on one mono buffer */
-static void _audio_decimator(struct ctx_s *ctx, uint32_t sampleCount, float *comp_bit, float *result)
+static void _audio_decimator(struct ctx_s *ctx, uint32_t sampleCount, float *comp_bit, uint8_t *result)
 {
 	const struct tbl3_s *t3 = lookupTable3(59.94); /* TODO */
 
@@ -145,7 +145,7 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	if (!Ms) {
 		return -ENOMEM;
 	}
-	float *result = malloc(sampleCount * sizeof(float));
+	uint8_t *result = malloc(sampleCount * sizeof(uint8_t));
 	if (!result) {
 		return -ENOMEM;
 	}
