@@ -145,6 +145,9 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double
 	if (ctx->t3 == NULL) {
 		ctx->framerate = framerate;
 		ctx->t3 = lookupTable3(ctx->framerate);
+		if (ctx->t3 == NULL) {
+			return -EINVAL;
+		}
 	};
 
 	/* We need a working mono buffer to transform the audio. */
