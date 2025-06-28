@@ -148,7 +148,7 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double
 		if (ctx->t3 == NULL) {
 			return -EINVAL;
 		}
-	};
+	}
 
 	/* We need a working mono buffer to transform the audio. */
 	float *bufA = malloc(sampleCount * sizeof(float));
