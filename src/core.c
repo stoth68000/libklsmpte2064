@@ -35,6 +35,7 @@ int klsmpte2064_context_alloc(void **hdl,
 	ctx->stride = stride;
 	ctx->progressive = progressive;
 	ctx->per_pixel_motion_threshold = 32;
+	ctx->audioMaxSampleCount = 2200;
 
 	ctx->t1 = lookupTable1(progressive, width, height);
 	if (!ctx->t1) {
@@ -50,6 +51,8 @@ int klsmpte2064_context_alloc(void **hdl,
 
 	ctx->bs = klbs_alloc();
 
+	klsmpte2064_audio_alloc(ctx);
+
 	*hdl = ctx;
 	return 0; /* Success */
 }
@@ -58,6 +61,7 @@ void klsmpte2064_context_free(void *hdl)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 
+	klsmpte2064_audio_free(ctx);
 	klbs_free(ctx->bs);
 	free(ctx->y);
 	free(ctx);

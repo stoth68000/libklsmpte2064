@@ -75,6 +75,15 @@ struct ctx_s
     double motion;
 
 	/* Audio */
+	/* Max samples per frame = (1000 / 23.97) × 48 = 2002.5 */
+	/* We'll pre-allocate sample buffers of audioMaxSampleCount = 2200 */
+	int audioMaxSampleCount;
+	float *bufA;
+	float *Es;
+	float *Ms;
+	uint8_t *comp_bit;
+	uint8_t *result;
+
 	double framerate;
 
     /* Encapsulation */
@@ -82,5 +91,7 @@ struct ctx_s
     uint8_t sequence_counter;
 };
 
+int klsmpte2064_audio_alloc(struct ctx_s *ctx);
+void klsmpte2064_audio_free(struct ctx_s *ctx);
 
 #endif /* _LIBKLSMPTE2064_PRIVATE_H */

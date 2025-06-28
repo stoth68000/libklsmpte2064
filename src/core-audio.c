@@ -128,6 +128,56 @@ static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 	}
 }
 
+int klsmpte2064_audio_alloc(struct ctx_s *ctx)
+{
+	ctx->bufA = malloc(ctx->audioMaxSampleCount * sizeof(float));
+	if (!ctx->bufA) {
+		return -ENOMEM;
+	}
+	ctx->Es = malloc(ctx->audioMaxSampleCount * sizeof(float));
+	if (!ctx->Es) {
+		return -ENOMEM;
+	}
+	ctx->Ms = malloc(ctx->audioMaxSampleCount * sizeof(float));
+	if (!ctx->Ms) {
+		return -ENOMEM;
+	}
+	ctx->comp_bit = malloc(ctx->audioMaxSampleCount * sizeof(uint8_t));
+	if (!ctx->comp_bit) {
+		return -ENOMEM;
+	}
+	ctx->result = malloc(ctx->audioMaxSampleCount * sizeof(uint8_t));
+	if (!ctx->result) {
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+void klsmpte2064_audio_free(struct ctx_s *ctx)
+{
+	if (ctx->bufA) {
+		free(ctx->bufA);
+		ctx->bufA = NULL;
+	}
+	if (ctx->Es) {
+		free(ctx->Es);
+		ctx->Es = NULL;
+	}
+	if (ctx->Ms) {
+		free(ctx->Ms);
+		ctx->Ms = NULL;
+	}
+	if (ctx->comp_bit) {
+		free(ctx->comp_bit);
+		ctx->comp_bit = NULL;
+	}
+	if (ctx->result) {
+		free(ctx->result);
+		ctx->result = NULL;
+	}
+}
+
 int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double framerate, 
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {
@@ -135,13 +185,11 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double
 	if (!ctx || !planeCount) {
 		return -EINVAL;
 	}
-
 	for (int i = 0; i < planeCount; i++) {
 		if (!planes[i]) {
 			return -EINVAL;
 		}
 	}
-
 	if (ctx->t3 == NULL) {
 		ctx->framerate = framerate;
 		ctx->t3 = lookupTable3(ctx->framerate);
@@ -150,62 +198,35 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double
 		}
 	}
 
-	/* We need a working mono buffer to transform the audio. */
-	float *bufA = malloc(sampleCount * sizeof(float));
-	if (!bufA) {
-		return -ENOMEM;
-	}
-	float *Es = malloc(sampleCount * sizeof(float));
-	if (!Es) {
-		return -ENOMEM;
-	}
-	float *Ms = malloc(sampleCount * sizeof(float));
-	if (!Ms) {
-		return -ENOMEM;
-	}
-	uint8_t *comp_bit = malloc(sampleCount * sizeof(uint8_t));
-	if (!comp_bit) {
-		return -ENOMEM;
-	}
-	uint8_t *result = malloc(sampleCount * sizeof(uint8_t));
-	if (!result) {
-		return -ENOMEM;
-	}
-
 	/* Section 5.3 - Audio Fingerprint Generation */
 
 	/* Step 5.3.1 - Downmix */
-	if (_audio_downmix(ctx, type, planes, planeCount, sampleCount, bufA) < 0) {
+	if (_audio_downmix(ctx, type, planes, planeCount, sampleCount, ctx->bufA) < 0) {
 		return -EINVAL;
 	}
 
 	/* Step 5.3.2 - Pseudo Absolute Value */
-	_audio_pseudo_abs_value(ctx, sampleCount, bufA);
+	_audio_pseudo_abs_value(ctx, sampleCount, ctx->bufA);
 
 	/* Step 5.3.3 - Envelope Detector */
-	_audio_envelope_detector(ctx, sampleCount, bufA, Es);
+	_audio_envelope_detector(ctx, sampleCount, ctx->bufA, ctx->Es);
 
 	/* Step 5.3.4 - Local Mean Detector */
-	_audio_local_mean_detector(ctx, sampleCount, bufA, Ms);
+	_audio_local_mean_detector(ctx, sampleCount, ctx->bufA, ctx->Ms);
 
 	/* Step 5.3.5 - Envelope/Mean Comparator */
-	_audio_envelope_mean_comparator(ctx, sampleCount, Es, Ms, comp_bit);
+	_audio_envelope_mean_comparator(ctx, sampleCount, ctx->Es, ctx->Ms, ctx->comp_bit);
 
 	/* Step 5.3.6 - Decimator */
-	_audio_decimator(ctx, sampleCount, comp_bit, result);
+	_audio_decimator(ctx, sampleCount, ctx->comp_bit, ctx->result);
 
 	if (ctx->verbose) {
 		printf("a fp: ");
 		for (int i = 0; i < ctx->t3->decimator_factor; i++) {
-			printf("%d", result[i]);
+			printf("%d", ctx->result[i]);
 		}
 		printf("\n");
 	}
 
-	free(result);
-	free(comp_bit);
-	free(Ms);
-	free(Es);
-	free(bufA);
 	return 0;
 }
