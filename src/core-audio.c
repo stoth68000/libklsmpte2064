@@ -46,8 +46,6 @@ static inline float pseudo_abs_float(float sample)
 /* 5.3.6 - Decimator - on one mono buffer */
 static void _audio_decimator(struct ctx_s *ctx, uint32_t sampleCount, uint8_t *comp_bit, uint8_t *result)
 {
-	ctx->t3 = lookupTable3(59.94); /* TODO */
-
 	/* decimate envelope/mean comparison */
 	for (uint32_t i = 0; i < sampleCount; i += ctx->t3->decimator_factor) {
 		result[i / ctx->t3->decimator_factor] = comp_bit[i];
@@ -130,7 +128,7 @@ static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 	}
 }
 
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
+int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double framerate, 
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -143,6 +141,11 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 			return -EINVAL;
 		}
 	}
+
+	if (ctx->t3 == NULL) {
+		ctx->framerate = framerate;
+		ctx->t3 = lookupTable3(ctx->framerate);
+	};
 
 	/* We need a working mono buffer to transform the audio. */
 	float *bufA = malloc(sampleCount * sizeof(float));
@@ -188,13 +191,14 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	/* Step 5.3.6 - Decimator */
 	_audio_decimator(ctx, sampleCount, comp_bit, result);
 
-#if 0
-	printf("a fp: ");
-	for (int i = 0; i < ctx->t3->decimator_factor; i++) {
-		printf("%d", result[i]);
+	if (ctx->verbose) {
+		printf("a fp: ");
+		for (int i = 0; i < ctx->t3->decimator_factor; i++) {
+			printf("%d", result[i]);
+		}
+		printf("\n");
 	}
-	printf("\n");
-#endif
+
 	free(result);
 	free(comp_bit);
 	free(Ms);

@@ -30,7 +30,7 @@ enum klsmpte2064_audio_type_e
  * @return      0 - Success
  * @return      < 0 - Error
  */
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
+int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double framerate, const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
 
 #ifdef __cplusplus
 };

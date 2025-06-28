@@ -74,6 +74,9 @@ struct ctx_s
     //
     double motion;
 
+	/* Audio */
+	double framerate;
+
     /* Encapsulation */
     struct klbs_context_s *bs;
     uint8_t sequence_counter;

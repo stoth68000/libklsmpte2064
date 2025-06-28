@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
 			audioP[aSampleCount + i] = (int16_t)r;
 		}
 
-		if (klsmpte2064_audio_push(ctx->hdl, AUDIOTYPE_STEREO_S16P, &planes[0], 2, aSampleCount) < 0) {
+		if (klsmpte2064_audio_push(ctx->hdl, AUDIOTYPE_STEREO_S16P, 59.94, &planes[0], 2, aSampleCount) < 0) {
 			fprintf(stderr, "Unable to push luma plane, aborting\n");
 			exit(0);
 		}
