@@ -23,7 +23,7 @@ extern "C" {
  * @return      < 0 - Error
  */
 int klsmpte2064_context_alloc(void **hdl,
-	uint32_t isYUV420p,
+	uint32_t isYUV420p,	// 1 = YUV420p, 2 = V210
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height,

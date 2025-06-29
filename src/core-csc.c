@@ -71,8 +71,8 @@ void v210_planar_line_unpack_c_to_8b(const uint32_t *src, uint8_t *y, int width)
 void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y, uint32_t y_stride, uint32_t width, uint32_t height)
 {
 	for (uint32_t i = 0; i < height; i++) {
-		const uint32_t *srcline = src + (i * src_stride);
-		uint8_t *dstline = y + (i * y_stride);
+		const uint32_t *srcline = src + (i * (src_stride / (sizeof(uint32_t))));
+		uint8_t *dstline        = y + (i * y_stride);
 		v210_planar_line_unpack_c_to_8b(srcline, dstline, width);
 	}
 }

@@ -47,6 +47,7 @@ struct ctx_s
     int verbose;
     
 	/* */
+	uint32_t colorspace; // 1 = YUV420P, 2 = V210
 	uint8_t *y; 
 	uint32_t width;
 	uint32_t height;

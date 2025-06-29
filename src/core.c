@@ -7,14 +7,14 @@
 #include <string.h>
 
 int klsmpte2064_context_alloc(void **hdl,
-	uint32_t isYUV420p,
+	uint32_t colorspace,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height,
 	uint32_t stride,
 	uint32_t bitdepth)
 {
-	if (!isYUV420p || !width || !height || stride != width || bitdepth != 8 || progressive != 1) {
+	if (!colorspace || !width || !height || !stride || (bitdepth != 8 && bitdepth != 10) || progressive != 1) {
 		return -EINVAL;
 	}
 
@@ -29,6 +29,7 @@ int klsmpte2064_context_alloc(void **hdl,
 		exit(0);
 	}
 
+	ctx->colorspace = colorspace;
 	ctx->width = width;
 	ctx->height = height;
 	ctx->bitdepth = bitdepth;

@@ -96,13 +96,8 @@ const struct tbl2_s *lookupTable2(int progressive, int width, int height)
 	return NULL; /* Failed */
 }
 
-int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
+int _video_push_yuv420p(struct ctx_s *ctx, const uint8_t *lumaplane)
 {
-	struct ctx_s *ctx = (struct ctx_s *)hdl;
-	if (!ctx || !lumaplane) {
-		return -EINVAL;
-	}
-
 	/* Step 1: pre-filter */
 	/* "The current field/frame shall be compared with the second preceding
 	 * field/frame to calculate a difference used for further processing."
@@ -125,6 +120,31 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	}
 
 	return 0;
+}
+
+int _video_push_v210(struct ctx_s *ctx, const uint8_t *lumaplane)
+{
+	/* Convert from V210 to 8 bit then push a regular 8 bit frame */
+	/* TODO: We don't actually need all the lines, we only need 60.
+	 * TODO: future enhancement.
+	*/
+	v210_planar_unpack_c_to_8b((const uint32_t *)lumaplane, ctx->stride, ctx->y, ctx->width, ctx->width, ctx->height);
+	return 0;
+}
+
+int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx || !lumaplane) {
+		return -EINVAL;
+	}
+
+	if (ctx->colorspace == 1)
+		return _video_push_yuv420p(ctx, lumaplane);
+	if (ctx->colorspace == 2)
+		return _video_push_v210(ctx, lumaplane);
+
+	return -1;
 }
 
 /* Clone the luma plane into our content, and apply -3-2/-1 prefilters
