@@ -39,8 +39,8 @@ struct tbl3_s
 	int decimator_factor;
 	int bytes_per_x_frames[2];
 	int bitrate_per_second;
-	uint32_t time_num;
-	uint32_t time_den;
+	uint32_t timebase_num;
+	uint32_t timebase_den;
 };
 const struct tbl3_s *lookupTable3(double video_frame_rate);
 

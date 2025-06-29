@@ -33,6 +33,17 @@ const struct tbl3_s *lookupTable3(double video_frame_rate)
 	return NULL; /* Failed */
 }
 
+const struct tbl3_s *lookupTable3Timebase(uint32_t num, uint32_t den)
+{
+	for (int i = 0; i < (sizeof(tbl3) / sizeof(struct tbl3_s)); i++) {
+		struct tbl3_s *t = &tbl3[i];
+		if ((num == t->timebase_num) && (den == t->timebase_den)) {
+			return t;
+		}
+	}
+	return NULL; /* Failed */
+}
+
 static inline float pcm16_to_float(int16_t sample)
 {
     return sample >= 0 ? sample / 32767.0f : sample / 32768.0f;
