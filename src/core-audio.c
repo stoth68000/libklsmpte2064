@@ -121,12 +121,13 @@ static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const i
 {
 	/* Take ch0 and ch1 into the analyzers */
 	const int32_t *s = (const int32_t *)planes[0];
+	int audioInputChannels = 16;
 
 	for (uint32_t i = 0; i < sampleCount; i++) {
 
 		/* Stride is 16 samples in decklink */
-		float ls = pcm16_to_float(s[ (i * 16) + 0] >> 16);
-		float rs = pcm16_to_float(s[ (i * 16) + 1] >> 16);
+		float ls = pcm16_to_float(s[ (i * audioInputChannels) + 0] >> 16);
+		float rs = pcm16_to_float(s[ (i * audioInputChannels) + 1] >> 16);
 
 		buf[i] = ((ls * 0.7071) + (rs * 0.7071)) / 2;
 	}
