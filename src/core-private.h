@@ -77,6 +77,12 @@ struct ctx_s
     //
     double motion;
 
+	/* The window subsamples an image based on 16 lines.
+	 * Cache those line numebrs that are specific to resolution.
+	 */
+	int wss_lines[WSS_ROWS];
+	int wss_line_count;
+
 	/* Audio */
 	/* Max samples per frame = (1000 / 23.97) × 48 = 2002.5 */
 	/* We'll pre-allocate sample buffers of audioMaxSampleCount = 2200 */

@@ -125,10 +125,10 @@ int _video_push_yuv420p(struct ctx_s *ctx, const uint8_t *lumaplane, int src_str
 int _video_push_v210(struct ctx_s *ctx, const uint8_t *lumaplane)
 {
 	/* Convert from V210 to 8 bit then push a regular 8 bit frame */
-	/* TODO: We don't actually need all the lines, we only need 60.
-	 * TODO: future enhancement.
-	*/
-	v210_planar_unpack_c_to_8b((const uint32_t *)lumaplane, ctx->inputstride, ctx->y_csc, ctx->ystride, ctx->width, ctx->height);
+
+	v210_planar_unpack_c_to_8b((const uint32_t *)lumaplane, ctx->inputstride, ctx->y_csc, ctx->ystride, ctx->width, ctx->height,
+		&ctx->wss_lines[0], ctx->wss_line_count);
+
 	return _video_push_yuv420p(ctx, ctx->y_csc, ctx->ystride);
 }
 
@@ -139,45 +139,84 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 		return -EINVAL;
 	}
 
-	if (ctx->colorspace == COLORSPACE_YUV420P)
+	if (ctx->colorspace == COLORSPACE_YUV420P) {
+		/* possible optimization here, make a list of lines we need to process, same as V210. */
 		return _video_push_yuv420p(ctx, lumaplane, ctx->inputstride);
-	if (ctx->colorspace == COLORSPACE_V210)
+	}
+	if (ctx->colorspace == COLORSPACE_V210) {
 		return _video_push_v210(ctx, lumaplane);
+	}
 
 	return -1;
 }
 
 /* Clone the luma plane into our content, and apply -3-2/-1 prefilters
- * per format during the process
+ * per format during the process.
+ * TODO: This prefilters the entire frame.
+ * technically we only need to do pre-filtering on lines we eventually
+ * care about, 16 of them.
  */
 static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stride)
 {
-	for (int h = 0; h < ctx->height; h++) {
-		for (int w = 0; w < ctx->width; w++) {
 
-			uint8_t *dstline = ctx->y + (src_stride * h);
-			uint8_t *srcline = (uint8_t *)luma + (src_stride * h);
-			
-			if (ctx->t1->pfcount == 0) {
+	if (ctx->wss_line_count) {
+		for (int i = 0; i < ctx->wss_line_count; i++) {
+			int h = ctx->wss_lines[i];
+			for (int w = 0; w < ctx->width; w++) {
 
-				/* No filtering at all, probably better to memcpy this */
-				dstline[w] = srcline[w];
+				uint8_t *dstline = ctx->y + (src_stride * h);
+				uint8_t *srcline = (uint8_t *)luma + (src_stride * h);
+				
+				if (ctx->t1->pfcount == 0) {
 
-			} else {
+					/* No filtering at all, probably better to memcpy this */
+					dstline[w] = srcline[w];
 
-				int sum = 0;
-				int samples = 0;
-				for (int i = 0; i < ctx->t1->pfcount; i++) {
-					int xx = w + ctx->t1->prefilter[i];
-					if (xx >= 0 && xx < ctx->width) {
-						sum += srcline[xx];
-						samples++;
+				} else {
+
+					int sum = 0;
+					int samples = 0;
+					for (int i = 0; i < ctx->t1->pfcount; i++) {
+						int xx = w + ctx->t1->prefilter[i];
+						if (xx >= 0 && xx < ctx->width) {
+							sum += srcline[xx];
+							samples++;
+						}
 					}
-				}
-				dstline[w] = (uint8_t)(sum / samples);
+					dstline[w] = (uint8_t)(sum / samples);
 
+				}
 			}
 
+		}
+	} else {
+		/* Entire frame - AS per the spec. */
+		for (int h = 0; h < ctx->height; h++) {
+			for (int w = 0; w < ctx->width; w++) {
+
+				uint8_t *dstline = ctx->y + (src_stride * h);
+				uint8_t *srcline = (uint8_t *)luma + (src_stride * h);
+				
+				if (ctx->t1->pfcount == 0) {
+
+					/* No filtering at all, probably better to memcpy this */
+					dstline[w] = srcline[w];
+
+				} else {
+
+					int sum = 0;
+					int samples = 0;
+					for (int i = 0; i < ctx->t1->pfcount; i++) {
+						int xx = w + ctx->t1->prefilter[i];
+						if (xx >= 0 && xx < ctx->width) {
+							sum += srcline[xx];
+							samples++;
+						}
+					}
+					dstline[w] = (uint8_t)(sum / samples);
+
+				}
+			}
 		}
 	}
 

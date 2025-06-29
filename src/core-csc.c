@@ -79,12 +79,24 @@ void v210_planar_line_unpack_c_to_8b(const uint32_t *src, uint8_t *y, int width)
  * The fingerprint only care about 60 lines, a small fraction of
  * the overall field.
  */
-void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y, uint32_t y_stride, uint32_t width, uint32_t height)
+void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y,
+	uint32_t y_stride, uint32_t width, uint32_t height,
+	int *lines, int lineCount)
 {
-	for (uint32_t i = 0; i < height; i++) {
-		const uint32_t *srcline = src + (i * (src_stride / (sizeof(uint32_t))));
-		uint8_t *dstline        = y + (i * y_stride);
-		v210_planar_line_unpack_c_to_8b(srcline, dstline, width);
+
+	if (lineCount) {
+		for (uint32_t i = 0; i < lineCount; i++) {
+			const uint32_t *srcline = src + (lines[i] * (src_stride / (sizeof(uint32_t))));
+			uint8_t *dstline        = y + (lines[i] * y_stride);
+			v210_planar_line_unpack_c_to_8b(srcline, dstline, width);
+		}
+	} else {
+		/* Entire frame */
+		for (uint32_t i = 0; i < height; i++) {
+			const uint32_t *srcline = src + (i * (src_stride / (sizeof(uint32_t))));
+			uint8_t *dstline        = y + (i * y_stride);
+			v210_planar_line_unpack_c_to_8b(srcline, dstline, width);
+		}
 	}
 }
 

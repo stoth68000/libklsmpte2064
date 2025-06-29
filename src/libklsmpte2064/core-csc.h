@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 void v210_planar_unpack_c(const uint32_t *src, uint32_t src_stride, uint16_t *y, uint32_t y_stride, uint32_t width, uint32_t height);
-void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y, uint32_t y_stride, uint32_t width, uint32_t height);
+void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y, uint32_t y_stride, uint32_t width, uint32_t height, int *lines, int lineCount);
 
 #ifdef __cplusplus
 };

@@ -56,6 +56,26 @@ int klsmpte2064_context_alloc(void **hdl,
 		return -EINVAL;
 	}
 
+	/* Progressive only - cache a list of line numbers in each frame.
+	 * used for large algorithm acceleration.
+	 */
+	int gridv = ctx->t2->vstart_f1;
+	for (int r = 0; r < WSS_ROWS; r++) {
+		ctx->wss_lines[r] = gridv;
+		gridv += ctx->t2->vstep;
+	}
+#if 0
+	/* Enable this line to accelerate the algorithm. It will only colorspace convert
+	 * and prefilter lines it needs to process, and ignore those that don't impact
+	 * the finger print calculation.
+	 */
+	ctx->wss_line_count = WSS_ROWS;
+#else
+	/* Implement the 2064 spec failfully, colorspace convert all lines
+	 * and pre-filter the entire frame.
+	 */
+	ctx->wss_line_count = 0; 
+#endif
 	ctx->bs = klbs_alloc();
 
 	klsmpte2064_audio_alloc(ctx);
