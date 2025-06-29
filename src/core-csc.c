@@ -10,6 +10,7 @@
 /* From libklvanc */
 #define av_le2ne32(x) (x)
 
+#if 0
 #define READ_PIXELS_10b(a, b, c)         \
     do {                             \
         val  = av_le2ne32( *src++ ); \
@@ -43,7 +44,12 @@ void v210_planar_unpack_c_10b(const uint32_t *src, uint32_t src_stride, uint16_t
 		v210_planar_line_unpack_c(srcline, dstline, width);
 	}
 }
+#endif
 
+/* Unpack a line of V210 4:2:2 10bit into three seperate planes of 8bit.
+ * Decimate by losing the top two bits.
+ * If the plane isn't specified, throw the data away.
+ */
 #define READ_PIXELS_8b(a, b, c)         \
     do {                             \
         val  = av_le2ne32( *src++ ); \
@@ -52,8 +58,8 @@ void v210_planar_unpack_c_10b(const uint32_t *src, uint32_t src_stride, uint16_t
         if (c) *c++ = (val >> 20) & 0xff;  \
     } while (0)
 
-/* Unpack a line of V210 4:2:2 10bit into three seperate planes.
- * Discard any Chroma, keep ont the luma. Decimate from 10 bit to 8bit.
+/* Convert a single line of V210 10bit to 8bit.
+ * Process luma only, discard the chroma.
  */
 void v210_planar_line_unpack_c_to_8b(const uint32_t *src, uint8_t *y, int width)
 {
@@ -68,6 +74,11 @@ void v210_planar_line_unpack_c_to_8b(const uint32_t *src, uint8_t *y, int width)
 	}
 }
 
+/* TODO: Quite a significant optimization.
+ * Take a list of 60 lines to be converted and skip the rest.
+ * The fingerprint only care about 60 lines, a small fraction of
+ * the overall field.
+ */
 void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y, uint32_t y_stride, uint32_t width, uint32_t height)
 {
 	for (uint32_t i = 0; i < height; i++) {
