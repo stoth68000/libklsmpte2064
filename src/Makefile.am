@@ -3,6 +3,7 @@ AUTOMAKE_OPTIONS = foreign
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libklsmpte2064.pc
+libklsmpte2064_la_LDFLAGS  = -Wl,--no-as-needed -lm
 
 lib_LTLIBRARIES = libklsmpte2064.la
 
@@ -24,4 +25,5 @@ libklsmpte2064_include_HEADERS  = libklsmpte2064/klsmpte2064.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-encapsulation.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-video.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-audio.h
+libklsmpte2064_include_HEADERS += libklsmpte2064/core.h
 
