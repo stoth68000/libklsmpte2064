@@ -95,7 +95,8 @@ struct ctx_s
 	uint8_t *comp_bit;
 	uint8_t *result;
 
-	double framerate;
+	uint32_t timebase_num;
+	uint32_t timebase_den;
 
     /* Encapsulation */
     struct klbs_context_s *bs;

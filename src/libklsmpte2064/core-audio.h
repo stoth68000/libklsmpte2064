@@ -28,13 +28,17 @@ enum klsmpte2064_audio_type_e
  *              Support for 48KHz signed 
  * @param[in]	void * - A previously allocated content/handle
  * @param[in]	enum klsmpte2064_audio_type_e - Eg. AUDIOTYPE_STEREO_S16P
+ * @param[in]	uint32_t - timebase_num. Eg. 1 or 1001
+ * @param[in]	uint32_t - timebase_den. Eg. 60 or 60000
  * @param[in]	const uint16_t ** - planes. A list of points into audio planes.
  * @param[in]	uint32_t - planeCount
  * @param[in]	uint32_t - Samples (per channel) in the planes. Should never exceed 2200. Typically 800/801 for 59.94.
  * @return      0 - Success
  * @return      < 0 - Error
  */
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double framerate, const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
+int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
+    uint32_t timebase_num, uint32_t timebase_den,
+    const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
 
 #ifdef __cplusplus
 };

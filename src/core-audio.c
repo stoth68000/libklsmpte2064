@@ -209,7 +209,8 @@ void klsmpte2064_audio_free(struct ctx_s *ctx)
 	}
 }
 
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double framerate, 
+int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
+	uint32_t timebase_num, uint32_t timebase_den,
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -222,11 +223,12 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type, double
 		}
 	}
 	if (ctx->t3 == NULL) {
-		ctx->framerate = framerate;
-		ctx->t3 = lookupTable3(ctx->framerate);
+		ctx->t3 = lookupTable3Timebase(timebase_num, timebase_den);
 		if (ctx->t3 == NULL) {
 			return -EINVAL;
 		}
+		ctx->timebase_num = timebase_num;
+		ctx->timebase_den = timebase_den;
 	}
 
 	/* Section 5.3 - Audio Fingerprint Generation */
