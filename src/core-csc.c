@@ -74,10 +74,11 @@ void v210_planar_line_unpack_c_to_8b(const uint32_t *src, uint8_t *y, int width)
 	}
 }
 
-/* TODO: Quite a significant optimization.
- * Take a list of 60 lines to be converted and skip the rest.
- * The fingerprint only care about 60 lines, a small fraction of
- * the overall field.
+/* Colorspace convert V210 into a 8 bit luma plane.
+ * Do the entire frame by default.
+ * Optionally, take a list of lines to be converted and ignore others.
+ * The fingerprint only care about 16 lines, a small fraction of
+ * the overall field, so a lot of cpu time can be saved.
  */
 void v210_planar_unpack_c_to_8b(const uint32_t *src, uint32_t src_stride, uint8_t *y,
 	uint32_t y_stride, uint32_t width, uint32_t height,
