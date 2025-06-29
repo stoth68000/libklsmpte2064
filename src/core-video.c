@@ -7,8 +7,8 @@
 #include <string.h>
 #include <inttypes.h>
 
-static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma);
-static int _video_window_subsampling_progressive(struct ctx_s *ctx);
+static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stride);
+static int _video_window_subsampling_progressive(struct ctx_s *ctx, int src_stride);
 static int _video_window_compute_motion(struct ctx_s *ctx);
 
 /* Table 1 - Video Format Prefilter */
@@ -96,19 +96,19 @@ const struct tbl2_s *lookupTable2(int progressive, int width, int height)
 	return NULL; /* Failed */
 }
 
-int _video_push_yuv420p(struct ctx_s *ctx, const uint8_t *lumaplane)
+int _video_push_yuv420p(struct ctx_s *ctx, const uint8_t *lumaplane, int src_stride)
 {
 	/* Step 1: pre-filter */
 	/* "The current field/frame shall be compared with the second preceding
 	 * field/frame to calculate a difference used for further processing."
 	 */
-	int r = _video_prefilter(ctx, lumaplane);
+	int r = _video_prefilter(ctx, lumaplane, src_stride);
 	if (r < 0) {
 		return -1;
 	}
 
 	/* Step 2: windowing */
-	r = _video_window_subsampling_progressive(ctx);
+	r = _video_window_subsampling_progressive(ctx, src_stride);
 	if (r < 0) {
 		return -1;
 	}
@@ -128,8 +128,8 @@ int _video_push_v210(struct ctx_s *ctx, const uint8_t *lumaplane)
 	/* TODO: We don't actually need all the lines, we only need 60.
 	 * TODO: future enhancement.
 	*/
-	v210_planar_unpack_c_to_8b((const uint32_t *)lumaplane, ctx->stride, ctx->y, ctx->width, ctx->width, ctx->height);
-	return 0;
+	v210_planar_unpack_c_to_8b((const uint32_t *)lumaplane, ctx->inputstride, ctx->y_csc, ctx->ystride, ctx->width, ctx->height);
+	return _video_push_yuv420p(ctx, ctx->y_csc, ctx->ystride);
 }
 
 int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
@@ -140,7 +140,7 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	}
 
 	if (ctx->colorspace == 1)
-		return _video_push_yuv420p(ctx, lumaplane);
+		return _video_push_yuv420p(ctx, lumaplane, ctx->inputstride);
 	if (ctx->colorspace == 2)
 		return _video_push_v210(ctx, lumaplane);
 
@@ -150,13 +150,13 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 /* Clone the luma plane into our content, and apply -3-2/-1 prefilters
  * per format during the process
  */
-static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma)
+static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stride)
 {
 	for (int h = 0; h < ctx->height; h++) {
 		for (int w = 0; w < ctx->width; w++) {
 
-			uint8_t *dstline = ctx->y + (ctx->stride * h);
-			uint8_t *srcline = (uint8_t *)luma + (ctx->stride * h);
+			uint8_t *dstline = ctx->y + (src_stride * h);
+			uint8_t *srcline = (uint8_t *)luma + (src_stride * h);
 			
 			if (ctx->t1->pfcount == 0) {
 
@@ -185,7 +185,7 @@ static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma)
 }
 
 /* See 5.2.2 and Figure 3 */
-static int _video_window_subsampling_progressive(struct ctx_s *ctx)
+static int _video_window_subsampling_progressive(struct ctx_s *ctx, int src_stride)
 {
 	if (!ctx->progressive) {
 		return -1;
@@ -202,7 +202,7 @@ static int _video_window_subsampling_progressive(struct ctx_s *ctx)
 
 	for (int r = 0; r < WSS_ROWS; r++) {
 		int gridh = ctx->t2->hstart;
-		uint8_t *srcline = (ctx->y + (gridv * ctx->stride));
+		uint8_t *srcline = (ctx->y + (gridv * src_stride));
 		//printf(MODULE_PREFIX "gridv %4d: ", gridv);
 
 		for (int c = 0; c < WSS_SAMPLES_PER_ROW; c++) {

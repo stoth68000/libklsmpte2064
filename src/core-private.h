@@ -48,10 +48,12 @@ struct ctx_s
     
 	/* */
 	uint32_t colorspace; // 1 = YUV420P, 2 = V210
+	uint8_t *y_csc; 
 	uint8_t *y; 
+	uint32_t ystride;
 	uint32_t width;
 	uint32_t height;
-	uint32_t stride;
+	uint32_t inputstride;
 	uint32_t bitdepth;
     uint32_t progressive;
 

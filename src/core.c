@@ -23,9 +23,15 @@ int klsmpte2064_context_alloc(void **hdl,
 		return -ENOMEM;
 	}
 
+	ctx->ystride = width;
 	ctx->y = malloc(width * height);
 	if (!ctx->y) {
-		fprintf(stderr, MODULE_PREFIX "unable to allocate lume frame, aborting.\n");
+		fprintf(stderr, MODULE_PREFIX "unable to allocate luma frame, aborting.\n");
+		exit(0);
+	}
+	ctx->y_csc = malloc(width * height);
+	if (!ctx->y_csc) {
+		fprintf(stderr, MODULE_PREFIX "unable to allocate luma frame, aborting.\n");
 		exit(0);
 	}
 
@@ -33,7 +39,7 @@ int klsmpte2064_context_alloc(void **hdl,
 	ctx->width = width;
 	ctx->height = height;
 	ctx->bitdepth = bitdepth;
-	ctx->stride = stride;
+	ctx->inputstride = stride;
 	ctx->progressive = progressive;
 	ctx->per_pixel_motion_threshold = 32;
 	ctx->audioMaxSampleCount = 2200;
@@ -64,6 +70,7 @@ void klsmpte2064_context_free(void *hdl)
 
 	klsmpte2064_audio_free(ctx);
 	klbs_free(ctx->bs);
+	free(ctx->y_csc);
 	free(ctx->y);
 	free(ctx);
 }
