@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 
 	/* */
 	if (klsmpte2064_context_alloc(&ctx->hdl,
-		1, // uint32_t isYUV420p,
+		COLORSPACE_YUV420P,
 		1, // uint32_t progressive,
 		ctx->width, // uint32_t width,
 		ctx->height, // uint32_t height,

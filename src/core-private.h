@@ -47,7 +47,7 @@ struct ctx_s
     int verbose;
     
 	/* */
-	uint32_t colorspace; // 1 = YUV420P, 2 = V210
+	enum klsmpte2064_colorspace_e colorspace; // 1 = YUV420P, 2 = V210
 	uint8_t *y_csc; 
 	uint8_t *y; 
 	uint32_t ystride;

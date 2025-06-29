@@ -7,7 +7,7 @@
 #include <string.h>
 
 int klsmpte2064_context_alloc(void **hdl,
-	uint32_t colorspace,
+	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height,

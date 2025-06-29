@@ -16,6 +16,13 @@
 extern "C" {
 #endif
 
+enum klsmpte2064_colorspace_e
+{
+	COLORSPACE_UNDEFINED = 0,
+	COLORSPACE_YUV420P,
+	COLORSPACE_V210,
+};
+
 /**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.
  * @param[out]	void ** - handle
@@ -23,7 +30,7 @@ extern "C" {
  * @return      < 0 - Error
  */
 int klsmpte2064_context_alloc(void **hdl,
-	uint32_t isYUV420p,	// 1 = YUV420p, 2 = V210
+	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height,
