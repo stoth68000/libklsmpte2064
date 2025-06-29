@@ -116,6 +116,23 @@ static int _audio_downmix_stereo(struct ctx_s *ctx,	const int16_t *planes[], uin
 
 	return 0;
 }
+static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const int16_t *planes[], uint32_t planeCount,
+	uint32_t sampleCount, float *buf)
+{
+	/* Take ch0 and ch1 into the analyzers */
+	const int32_t *s = (const int32_t *)planes[0];
+
+	for (uint32_t i = 0; i < sampleCount; i++) {
+
+		/* Stride is 16 samples in decklink */
+		float ls = pcm16_to_float(s[ (i * 16) + 0] >> 16);
+		float rs = pcm16_to_float(s[ (i * 16) + 1] >> 16);
+
+		buf[i] = ((ls * 0.7071) + (rs * 0.7071)) / 2;
+	}
+
+	return 0;
+}
 
 static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount, float *buf)
@@ -123,6 +140,8 @@ static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 	switch (type) {
 	case AUDIOTYPE_STEREO_S16P:
 		return _audio_downmix_stereo(ctx, planes, planeCount, sampleCount, buf);
+	case AUDIOTYPE_STEREO_S32_CH16_DECKLINK:
+		return _audio_downmix_decklink_interleaved_stereo(ctx, planes, planeCount, sampleCount, buf);
 	default:
 		return -EINVAL;
 	}
