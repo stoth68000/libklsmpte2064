@@ -260,8 +260,20 @@ static int _audio_downmix_stereo(struct ctx_s *ctx,	const int16_t *planes[], uin
 		buf[i] = ((ls * 0.7071) + (rs * 0.7071)) / 2;
 	}
 
+#if 0
+	static FILE *fh = NULL;
+	if (fh == NULL) {
+		fh = fopen("downmix-stereo.f32", "wb");
+	}
+	if (fh) {
+		// ffmpeg -y -f f32le -ar 48000 -ac 1 -i downmix-stereo.f32 /tmp/new.wav
+		fwrite(buf, 1, sampleCount * sizeof(float), fh);
+	}
+#endif
+
 	return 0;
 }
+
 static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const int16_t *planes[], uint32_t planeCount,
 	uint32_t sampleCount, float *buf)
 {
@@ -270,14 +282,28 @@ static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const i
 	int audioInputChannels = 16;
 
 	for (uint32_t i = 0; i < sampleCount; i++) {
+
 		/* Stride is 16 samples in decklink */
 		float ls = pcm16_to_float(s[ (i * audioInputChannels) + 0] >> 16);
 		float rs = pcm16_to_float(s[ (i * audioInputChannels) + 1] >> 16);
 
 		buf[i] = ((ls * 0.7071) + (rs * 0.7071)) / 2;
 	}
+
+#if 0
+	static FILE *fh = NULL;
+	if (fh == NULL) {
+		fh = fopen("downmix-decklink-interleaved-stereo.f32", "wb");
+	}
+	if (fh) {
+		// ffmpeg -y -f f32le -ar 48000 -ac 1 -i downmix-decklink-interleaved-stereo.f32 /tmp/new.wav
+		fwrite(buf, 1, sampleCount * sizeof(float), fh);
+	}
+#endif
+
 	return 0;
 }
+
 static int _audio_downmix_decklink_interleaved_smpte312(struct ctx_s *ctx, const int16_t *planes[], uint32_t planeCount,
 	uint32_t sampleCount, float *buf)
 {
