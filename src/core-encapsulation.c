@@ -21,6 +21,13 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 	int vfp_present_flag = 1;
 	int afp_present_flag = 0;
 
+	/* How many audio fingerprints do we have? */
+	for (int i = 0; i < AUDIOTYPE_MAX; i++) {
+		if (klbs_get_byte_count(&ctx->fp_bs[i]) > 0) {
+			afp_present_flag++;
+		}
+	}
+
 	/* Never actually called out if reserved means its 0 or 1, we'll go with the mpeg standard of 1 */
 	uint32_t reserved = 0xffffffff;
 
@@ -76,6 +83,54 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 
 	if (afp_present_flag) {
 		/* Unsupported */
+
+		/* Each call to klsmpte2064_audio_push() gets it own audio fingerprint.
+		 * This enables callers to fingerprint the various audio channels
+		 * in way they deem necessary:
+		 * Eg. 1. English stereo downmix
+		 *     2. Spanish stereo downmix.
+		 *     3. English 5.1 downmix.
+		 * 
+		 * Callers are expected to call audio push as many times as they need for the same data,
+		 * each getting its own fingerprint, each encapsulated sequentially.
+		 * 
+		 * The length of a fingerprint in bits is no more than ctx->t3->decimator_factor
+		 * which the spec says is either 50 (6.25bytes) or 52 bits (6.5 bytes) exactly.
+		 * 
+		 */
+
+		klbs_write_bits(ctx->bs, afp_present_flag, 5); /* Audio Fingerprint Count */
+		klbs_write_bits(ctx->bs, 0x02, 3); /* SCType: 2 = ID Audio Fingerprint Container  */
+
+		uint8_t audio_fingerprint_id = 0;
+		for (int i = 0; i < AUDIOTYPE_MAX; i++) {
+			uint32_t len = klbs_get_byte_count(&ctx->fp_bs[i]);
+			if (len == 0) {
+				continue;
+			}
+
+			klbs_write_bits(ctx->bs, audio_fingerprint_id++, 5);
+
+			/* AudioMixType */
+			switch (i) {
+			case AUDIOTYPE_STEREO_S16P:
+				klbs_write_bits(ctx->bs, 0x02, 3); /* Downmix from 2.0-channel audio */
+				break;
+			case AUDIOTYPE_STEREO_S32_CH16_DECKLINK:
+				klbs_write_bits(ctx->bs, 0x02, 3); /* Downmix from 2.0-channel audio */
+				break;
+			default:
+				klbs_write_bits(ctx->bs, 0x0, 3); /* Reserved for future use by SMPTE */
+			}
+
+			klbs_write_bits(ctx->bs, len, 5); /* AFDataCount */
+			klbs_write_bits(ctx->bs, reserved, 3); /* Reserved */
+
+			for (uint32_t j = 0; j < len; j++) {
+				klbs_write_bits(ctx->bs, ctx->fp_buffer[i][j], 8); /* Audio Fingerprint Data */
+			}
+
+		}
 	}
 
 	uint32_t c = 0;
