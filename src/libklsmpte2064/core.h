@@ -3,6 +3,38 @@
  * @author	Steven Toth <stoth@kernellabs.com>
  * @copyright	Copyright (c) 2025 Kernel Labs Inc. All Rights Reserved.
  * @brief	A full SMPTE-2064 implementation based on SMPTE ST 2064-1:2015
+ *
+ * Most likely use case:
+ * void *hdl;
+ * 
+ * klsmpte2064_context_alloc(&hdl, COLORSPACE_V210, 1280, 720, strideBytes, 10);
+ * 
+ * while (frameArrived) {
+ *   // Process Video
+ *   const uint8_t *videoplane = NULL; 
+ *   videoframe->GetBytes((void **)&v);
+ *   klsmpte2064_video_push(hdl, videoplane);
+ * 
+ *   // Process Audio - We want a stereo finger print
+ *   // Takes audio channels 1-2 and fingerprint those.
+ *   const int32_t *audiobytes = NULL;
+ *   audioframe->GetBytes((void **)&audioplane);
+ *   const int16_t *planes[] = { (int16_t *)audiobytes };
+ *   klsmpte2064_audio_push(hdl, AUDIOTYPE_STEREO_S32_CH16_DECKLINK, 1001, 6000, &planes[0], 1, audioframe->GetSampleFrameCount());
+ *  
+ *   // Process Audio - We want a 5.1 discrete S312 fingerprint
+ *   // Takes audio channels 1-6 in a SMPTE 312 channel format and fingerprint those.
+ *   const int32_t *audiobytes = NULL;
+ *   audioframe->GetBytes((void **)&audioplane);
+ *   const int16_t *planes[] = { (int16_t *)audiobytes };
+ *   klsmpte2064_audio_push(hdl, AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK, 1001, 6000, &planes[0], 1, audioframe->GetSampleFrameCount());
+ * 
+ *   // Get the fingerprints
+ *   uint8_t section[512];
+ *   uint32_t usedLength = 0;
+ *   klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &usedLength);
+ * }
+ * klsmpte2064_context_free(hdl);
  */
 
 #ifndef _LIBKLSMPTE2064_CORE_H
