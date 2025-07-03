@@ -50,7 +50,7 @@ static inline float pcm16_to_float(int16_t sample)
 }
 
 /* 5.3.6 - Decimator - on one mono buffer */
-static void _audio_decimator(struct ctx_s *ctx, uint32_t sampleCount, uint8_t *comp_bit, uint8_t *result)
+static void _audio_decimator(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type, uint32_t sampleCount, uint8_t *comp_bit, uint8_t *result)
 {
 	/* decimate envelope/mean comparison */
 	for (uint32_t i = 0; i < sampleCount; i += ctx->t3->decimator_factor) {
@@ -232,6 +232,9 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 		ctx->timebase_den = timebase_den;
 	}
 
+	/* Reset the fingerprint for the type */
+	klbs_init(&ctx->fp_bs[type]);
+
 	/* Section 5.3 - Audio Fingerprint Generation */
 
 	/* Step 5.3.1 - Downmix */
@@ -252,7 +255,7 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	_audio_envelope_mean_comparator(ctx, sampleCount, ctx->Es, ctx->Ms, ctx->comp_bit);
 
 	/* Step 5.3.6 - Decimator */
-	_audio_decimator(ctx, sampleCount, ctx->comp_bit, ctx->result);
+	_audio_decimator(ctx, type, sampleCount, ctx->comp_bit, ctx->result);
 
 	if (ctx->verbose) {
 		printf("a fp: ");
