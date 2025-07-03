@@ -59,6 +59,12 @@ enum klsmpte2064_colorspace_e
 /**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.
  * @param[out]	void ** - handle
+ * @param[in]	enum klsmpte2064_colorspace_e - Typically COLORSPACE_YUV420P
+ * @param[in]	uint32_t progressive - Boolean. Is the video progressive?
+ * @param[in]	uint32_t width - in pixels
+ * @param[in]	uint32_t height - in pixels
+ * @param[in]	uint32_t stride - Size of each line of video in bytes
+ * @param[in]	uint32_t bitdepth - either 8 or 10 only. COLORSPACE_YUV420P is 8, V210 is 10.
  * @return      0 - Success
  * @return      < 0 - Error
  */
@@ -75,7 +81,7 @@ int klsmpte2064_context_alloc(void **hdl,
  * @brief	    Raise (1) or lower (0) the overal level of console debug from the library.
  *              The default is zero, no console output under normal operating conditions.
  * @param[in]	void * - A previously allocated content/handle
- * @param[in]	int - verbosity level (0 or 1).
+ * @param[in]	int level - verbosity level (0 or 1).
  * @return      0 - Success
  * @return      < 0 - Error
  */
