@@ -135,7 +135,6 @@ static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const i
 	int audioInputChannels = 16;
 
 	for (uint32_t i = 0; i < sampleCount; i++) {
-
 		/* Stride is 16 samples in decklink */
 		float ls = pcm16_to_float(s[ (i * audioInputChannels) + 0] >> 16);
 		float rs = pcm16_to_float(s[ (i * audioInputChannels) + 1] >> 16);
@@ -214,7 +213,7 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
-	if (!ctx || !planeCount) {
+	if (!ctx || !planeCount || type >= AUDIOTYPE_MAX) {
 		return -EINVAL;
 	}
 	for (int i = 0; i < planeCount; i++) {
