@@ -4,39 +4,61 @@
  * @copyright	Copyright (c) 2025 Kernel Labs Inc. All Rights Reserved.
  * @brief	Context allocation and destruction
  *
- * Most likely use case:
+ */
+
+/**
+ * @mainpage A library to calculate SMPTE2064 audio and video fingerprints
+ *
+ * @section intro_sec Introduction
+ *
+ * A fast and efficient system for fingerprint creation.
+ * See the project README.MD for a full description of features.
+ * The source is written to closely follow the specification, so you should
+ * easily be able to compare the library to the spec - for confirmation.
+ *
+ * @section use_Case_sec Typical Use Case
+ * Your project might need to do something like this:
+ *
+ * @code{.sh}
  * void *hdl;
  * 
  * klsmpte2064_context_alloc(&hdl, COLORSPACE_V210, 1280, 720, strideBytes, 10);
  * 
  * while (frameArrived) {
- *   // Process Video
+ * 
+ *   // Process Video - get the luma plane
  *   const uint8_t *videoplane = NULL; 
  *   videoframe->GetBytes((void **)&v);
+ * 
+ *   // Feed video into the framework
  *   klsmpte2064_video_push(hdl, videoplane);
  * 
- *   // Process Audio - We want a stereo finger print
- *   // Takes audio channels 1-2 and fingerprint those.
- *   const int32_t *audiobytes = NULL;
- *   audioframe->GetBytes((void **)&audioplane);
- *   const int16_t *planes[] = { (int16_t *)audiobytes };
- *   klsmpte2064_audio_push(hdl, AUDIOTYPE_STEREO_S32_CH16_DECKLINK, 1001, 6000, &planes[0], 1, audioframe->GetSampleFrameCount());
- *  
  *   // Process Audio - We want a 5.1 discrete S312 fingerprint
  *   // Takes audio channels 1-6 in a SMPTE 312 channel format and fingerprint those.
+ *   // Get the audio planes
  *   const int32_t *audiobytes = NULL;
  *   audioframe->GetBytes((void **)&audioplane);
  *   const int16_t *planes[] = { (int16_t *)audiobytes };
+ * 
+ *   // Feed audio into the framework
  *   klsmpte2064_audio_push(hdl, AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK, 1001, 6000, &planes[0], 1, audioframe->GetSampleFrameCount());
  * 
- *   // Get the fingerprints
+ *   // Get the fingerprints, encapsulated as the spec mandates.
  *   uint8_t section[512];
  *   uint32_t usedLength = 0;
  *   klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &usedLength);
  * }
  * klsmpte2064_context_free(hdl);
+ * @endcode
+ *
+ * @section license_sec License
+ * This project is licensed under LGPL v2.1 License - see the LICENSE file for details.
+ *
+ * @section contact_sec Contact
+ * Copyright (c) 2025 Kernel Labs Inc. All Rights Reserved.  
+ * Author: Steven Toth <stoth@kernellabs.com>
+ * GitHub: https://github.com/stoth68000/libklsmpte2064
  */
-
 #ifndef _LIBKLSMPTE2064_CORE_H
 #define _LIBKLSMPTE2064_CORE_H
 
@@ -58,6 +80,9 @@ enum klsmpte2064_colorspace_e
 
 /**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.
+ *              The library supports all of the colorspace formats listed in the enum, a 8 or 10 bit depth
+ *              packing. Most 8 bit codec typically take YUV420P, 8 bit. If you want higher levels of depth
+ *              use V210.
  * @param[out]	void ** - handle
  * @param[in]	enum klsmpte2064_colorspace_e - Typically COLORSPACE_YUV420P
  * @param[in]	uint32_t progressive - Boolean. Is the video progressive?
