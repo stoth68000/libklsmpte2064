@@ -262,5 +262,40 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 		printf("\n");
 	}
 
+	if (ctx->verbose > 1) {
+		int x = 24;
+
+		printf("As: ");
+		for (int i = 0; i < x; i++) {
+			printf("% 6.4f ", ctx->bufA[i]);
+		}
+		printf("\n");
+		printf("Es: ");
+		for (int i = 0; i < x; i++) {
+			printf("% 6.4f ", ctx->Es[i]);
+		}
+		printf("\n");
+		printf("Ms: ");
+		for (int i = 0; i < x; i++) {
+			printf("% 6.4f ", ctx->Ms[i]);
+		}
+		printf("\n");
+		printf("MS: ");
+		for (int i = 0; i < x; i++) {
+			printf("% 6.4f ", ctx->Ms[i] + 0.015f);
+		}
+		printf("\n");
+		printf(" ?: ");
+		for (int i = 0; i < x; i++) {
+			printf("% 6.4f ", ctx->Es[i] - (ctx->Ms[i] + 0.015f));
+		}
+		printf("\n");
+		printf("CB: ");
+		for (int i = 0; i < x; i++) {
+			printf("% 6.4f ", (float)ctx->comp_bit[i]);
+		}
+		printf("\n");
+	}
+
 	return 0;
 }
