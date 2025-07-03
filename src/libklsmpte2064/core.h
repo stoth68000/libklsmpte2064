@@ -2,7 +2,7 @@
  * @file	core.h
  * @author	Steven Toth <stoth@kernellabs.com>
  * @copyright	Copyright (c) 2025 Kernel Labs Inc. All Rights Reserved.
- * @brief	A full SMPTE-2064 implementation based on SMPTE ST 2064-1:2015
+ * @brief	Context allocation and destruction
  *
  * Most likely use case:
  * void *hdl;

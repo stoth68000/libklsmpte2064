@@ -2,7 +2,7 @@
  * @file	core-video.h
  * @author	Steven Toth <stoth@kernellabs.com>
  * @copyright	Copyright (c) 2025 Kernel Labs Inc. All Rights Reserved.
- * @brief	A full SMPTE-2064 implementation based on SMPTE ST 2064-1:2015
+ * @brief	Processing video content
  */
 
 #ifndef _LIBKLSMPTE2064_CORE_VIDEO_H
