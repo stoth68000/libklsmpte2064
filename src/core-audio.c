@@ -143,6 +143,13 @@ static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const i
 static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount, float *buf)
 {
+	if (sampleCount > ctx->audioMaxSampleCount) {
+		klsmpte2064_audio_free(ctx);
+		ctx->audioMaxSampleCount = sampleCount;
+		if (klsmpte2064_audio_alloc(ctx) < 0) {
+			return -ENOMEM;
+		}
+	}
 	switch (type) {
 	case AUDIOTYPE_STEREO_S16P:
 		return _audio_downmix_stereo(ctx, planes, planeCount, sampleCount, buf);
