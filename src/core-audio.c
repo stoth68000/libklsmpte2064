@@ -93,10 +93,21 @@ static inline float pcm16_to_float(int16_t sample)
 /* 5.3.6 - Decimator - on one mono buffer */
 static void _audio_decimator(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type, uint32_t sampleCount, uint8_t *comp_bit, uint8_t *result)
 {
+	/* remove any prev fp */
+	memset(&ctx->fp_buffer[type][0], 0, sizeof(ctx->fp_buffer[type]));
+	klbs_init(&ctx->fp_bs[type]);
+	klbs_write_set_buffer(&ctx->fp_bs[type], &ctx->fp_buffer[type][0], sizeof(ctx->fp_buffer[type]));
+
+	memset(result, 0, sampleCount);
+
 	/* decimate envelope/mean comparison */
 	for (uint32_t i = 0; i < sampleCount; i += ctx->t3->decimator_factor) {
 		result[i / ctx->t3->decimator_factor] = comp_bit[i];
+		klbs_write_bit(&ctx->fp_bs[type], comp_bit[i]);
+//		printf("%3d: bit %3d: = %d\n", i, i / ctx->t3->decimator_factor, comp_bit[i]);
 	}
+	klbs_write_buffer_complete(&ctx->fp_bs[type]);
+	//printf("fp bytes used %d\n", klbs_get_byte_count(&ctx->fp_bs[type]));
 }
 
 /* 5.3.5 - Envelope/Mean Comparator - on two mono buffers */
