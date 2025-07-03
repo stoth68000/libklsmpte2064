@@ -7,6 +7,47 @@
 #include <string.h>
 #include <math.h>
 
+/* Functions that implement 5.3.2, 5.3.3, 5.3.4 and 5.3.5
+ * could easily be folded into a single one loop functon.
+ * I've decided not to do that because the performance gain
+ * isn't massive, and the current implementation better
+ * reflects the spec doc, and is easy to read side
+ * by side for other developers.
+ */
+
+/* In practise, the envelope detection and mean modeling
+ * as describing in the spec never worked well at all.
+ * The mean was always too far below the ES and resulted
+ * in fingerprints containing all 11111, because ms was always < es.
+ *
+ * I ended up modelling this in excel with real data so I could visualize
+ * what what happening to the calculations over time, as I adjusted
+ * ES_KM, ES_KE and MS_KM. It didn't matter how much I applied gain
+ * or attenuation to the absolute samples, the calculations were
+ * relatively too far part to be useful.
+ * It didn't matter if I adusted KM/KE/KM to decay faster, it never
+ * seemed to.
+ * The algorithm as listed in the spec (now in the spreadsheet)
+ * never actually produced useful voice envelope detection capabiltiies.
+ *
+ * So, I experimented with better IIR filters in excel and found
+ * something that atleast worked. KM/KE/KM were replaced with a
+ * simpled alpha and beta multiplier. Memory/smoothing and decay
+ * was still modelled, by the MS and ES were much closer together
+ * and I was able to reliably produce fingerprints for voice
+ * input.
+ * 
+ * Your milage may vary. The original algorithm is left here,
+ * feel free to compile it in and experiement. If you think you
+ * disagree with the above, or can shine any light as to why
+ * the SMPTE2064 algorithm wasn't working as predicted, please
+ * contain me.
+ * Adjust ORIGINAL_SPEC_IMPLEMENTATION to 1 for a faithful
+ * implementation and try your hand at it.
+ */
+
+#define ORIGINAL_SPEC_IMPLEMENTATION 0
+
 struct tbl3_s tbl3[] = {
 	{ 23.98, 52, { 77, 16 }, 923, 1001, 24000, },
 	{ 29.97, 52, { 77, 20 }, 923, 1001, 30000, },
@@ -61,9 +102,21 @@ static void _audio_decimator(struct ctx_s *ctx, enum klsmpte2064_audio_type_e ty
 /* 5.3.5 - Envelope/Mean Comparator - on two mono buffers */
 static void _audio_envelope_mean_comparator(struct ctx_s *ctx, uint32_t sampleCount, float *Es, float *Ms, uint8_t *comp_bit)
 {
-	/* Extract fingerprint by comparing envelope with local mean */
+	/* In a reliable fingerprinting system, you expect Es to briefly rise above Ms, then
+	 * fall below or near it during steady-state voice or silence.
+	 */
+
+	/* Extract fingerprint by comparing envelope ES with local mean Ms */
 	for (uint32_t i = 0; i < sampleCount; i++) {
+#if ORIGINAL_SPEC_IMPLEMENTATION
 		if (Ms[i] < Es[i]) {
+#else
+		/* threshold margin, raise the mean. We can probably avoid doing
+		 * by adjusting the beta level up in the mean detector.
+		 */ 
+		const float delta = 0.015f;
+		if ((Ms[i] + delta) < Es[i]) {
+#endif
 			comp_bit[i] = 1;
 		} else {
 			comp_bit[i] = 0;
@@ -72,29 +125,100 @@ static void _audio_envelope_mean_comparator(struct ctx_s *ctx, uint32_t sampleCo
 }
 
 /* 5.3.4 - Local Mean Detector - on a mono buffer */
+/* It calculates a smoothed representation of the input signal a_wav[] and stores
+ * the result in Ms[], using a simple leaky integrator filter. The goal is to extract the local
+ * mean energy over time, which can later be used in envelope
+ * tracking as part of the audio fingerprinting process.
+ */
 static void _audio_local_mean_detector(struct ctx_s *ctx, uint32_t sampleCount, float *a_wav, float *Ms)
 {
+#if ORIGINAL_SPEC_IMPLEMENTATION
+	/* is the IIR filter coefficient (decay factor). A large Km causes slower decay and thus a longer memory window. */
 	float Km = 8192; // local mean detector IIR filter coefficient
 
+	/* Ms[] is the local mean of the signal over time, with smoothing controlled by Km. */
 	Ms[0] = 0; // initialize first value to a known state
 
 	/* Local mean IIR filter */
 	for (uint32_t i = 1; i < sampleCount; i++) {
-		Ms[i] = a_wav[i] + Ms[i - 1] - floor(Ms[i - 1] / Km);
+		/* The equivalent to a simple IIR low-pass filter but uses decay by subtracting
+		 * a fractional part of the current value (Ms[i-1]/Km, rounded down).
+		 */
+		Ms[i] = a_wav[i] + Ms[i - 1] - floorf(Ms[i - 1] / Km);
 	}
+#else
+	/* is the IIR filter coefficient (decay factor). A large Km causes slower decay and thus a longer memory window. */
+	const float beta = 0.005f;
+
+	/* Ms[] is the local mean of the signal over time, with smoothing controlled by Km. */
+	Ms[0] = a_wav[0];
+
+	/* Local mean IIR filter */
+	for (uint32_t i = 1; i < sampleCount; i++) {
+		/* IIR low-pass filter. Ms[i] = scaled_energy_contribution + decay percentage of previous_value,
+		 * do more averaging for the mean basically.
+		 */
+		Ms[i] = beta * a_wav[i] + (1.0f - beta) * Ms[i - 1];
+	}
+#endif
 }
 
 /* 5.3.3 - Envelope Detector - on a mono buffer */
+/* To compute the envelope of the input audio waveform a_wav[] using an IIR low-pass filter.
+ * The output is stored in the buffer Es[], which represents the energy envelope of the input waveform.
+ * It tracks the amplitude of the signal (a_wav) over time.
+ * It has fast attack (quickly reacts to rising amplitude) due to the multiplication with Km.
+ * It has slow decay (envelope fades gradually when signal drops), controlled by Ke.
+ * 
+ * Es[] is a smoothed, rectified version of the input signal’s amplitude — the envelope — used in
+ * audio fingerprinting to detect energy bursts, silence, or motion (per SMPTE ST 2064-1).
+ */
 static void _audio_envelope_detector(struct ctx_s *ctx, uint32_t sampleCount, float *a_wav, float *Es)
 {
-	float Km = 8192; // local mean detector IIR filter coefficient
-	float Ke = 1024; // Envelope detector IIR filter coefficient
+#if ORIGINAL_SPEC_IMPLEMENTATION
+	/* scaling factor (sometimes called gain), effectively increasing the contribution of the current sample. */
+	float Km = 1024; // local mean detector IIR filter coefficient
+
+	/* time constant of the IIR filter; higher value means slower envelope decay.
+	 * Smaller Ke → larger fraction subtracted → faster decay
+	 * Larger Ke → smaller fraction subtracted → slower decay
+	 */
+	float Ke = 256; // Envelope detector IIR filter coefficient
 
 	Es[0] = 0;
 
 	for (uint32_t i = 1; i < sampleCount; i++) {
-		Es[i] = (a_wav[i] * Km / Ke) + Es[i - 1] - floor(Es[i - 1] / Ke);
+		/* Es[i] = current_energy_contribution + previous_value - decay_term */
+		Es[i] = (a_wav[i] * Km / Ke) + Es[i - 1] - floorf(Es[i - 1] / Ke);
 	}
+#else
+	/*
+	 * The variable alpha is the smoothing factor (or time constant) in a single-pole Infinite Impulse Response (IIR) low-pass filter.
+	 * It controls how quickly the envelope Es[] responds to changes in the input audio.
+	 * | `alpha` Value              | Behavior                             | Effect                                    |
+     * | -------------------------- | ------------------------------------ | ----------------------------------------- |
+	 * | **Close to 1** (`0.8–1.0`) | Very fast response                   | Es follows input tightly (less smoothing) |
+	 * | **Moderate** (`0.2–0.5`)   | Balanced response                    | Good for speech onsets                    |
+	 * | **Small** (`< 0.1`)        | Very slow response (heavy smoothing) | Es changes slowly (lags behind input)     |
+	 */
+
+	/* alpha controls how “agile” the envelope is:
+	 * Bigger alpha = reacts faster
+	 * Smaller alpha = smooths more
+	 * 
+	 * If alpha = 0.25:
+	 *   Each new value of Es[i] is 25% from the current input and 75% from the past.
+	 *   The envelope will rise quickly with loud input, then decay gently when input drops.
+	 */
+	const float alpha = 0.25f; /* How quickly the solution adapts to energy change */
+
+	Es[0] = a_wav[0];
+
+	for (uint32_t i = 1; i < sampleCount; i++) {
+		/* Es[i] = scaled_energy_contribution + decay percentage of previous_value */
+		Es[i] = alpha * a_wav[i] + (1.0f - alpha) * Es[i - 1];
+	}
+#endif
 }
 
 /* 5.3.2 - Pseudo Absolute Value - on a mono buffer */
