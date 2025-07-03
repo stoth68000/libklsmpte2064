@@ -95,6 +95,13 @@ struct ctx_s
 	uint8_t *comp_bit;
 	uint8_t *result;
 
+	struct klbs_context_s fp_bs[AUDIOTYPE_MAX]; /* One fingerprint per audio input type */
+	uint8_t fp_buffer[AUDIOTYPE_MAX][8];
+	/* Table 13 states that maximum number of fingerprint bytes for a framerate is 5.
+	 * The spec seems inconsistent because table 3 stats that for 60fps, the
+	 * decimation is 50 or 52 bits depending on framerate, resulting in 6.25 or 6.5 bytes.
+	 */
+
 	uint32_t timebase_num;
 	uint32_t timebase_den;
 
