@@ -18,6 +18,8 @@ extern "C" {
 
 /**
  * @brief	    Push a video frame into the solution for processing.
+ *              During context creation the width, height, depth etc was declared,
+ *              pay attension and don't violate that.
  * @param[in]	void * - A previously allocated content/handle
  * @param[in]	const uint8_t * - The luma plane.
  * @return      0 - Success

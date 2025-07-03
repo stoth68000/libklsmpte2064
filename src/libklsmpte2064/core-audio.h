@@ -27,7 +27,9 @@ enum klsmpte2064_audio_type_e
 
 /**
  * @brief	    Push an audio frame into the solution for processing.
- *              Support for 48KHz signed. Should never exceed 2200. Typically 800/801 for 59.94.
+ *              Support for 48KHz signed.
+ *              Sample count should never technically exceed 2200, it's yypically 800/801
+ *              for 59.94 framerate video. The timebase 1001/60000 is important, don't abuse this.
  * @param[in]	void * - A previously allocated content/handle
  * @param[in]	enum klsmpte2064_audio_type_e - Eg. AUDIOTYPE_STEREO_S16P
  * @param[in]	uint32_t timebase_num - Eg. 1 or 1001
