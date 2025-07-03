@@ -15,6 +15,11 @@
  * by side for other developers.
  */
 
+/* Table 13 seems whole inconsistent with the number of bytes
+ * per fingerprint as described in table 3.
+ * Table 13 is being ignored for the time being.
+ */
+
 /* In practise, the envelope detection and mean modeling
  * as describing in the spec never worked well at all.
  * The mean was always too far below the ES and resulted
@@ -271,6 +276,38 @@ static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const i
 
 		buf[i] = ((ls * 0.7071) + (rs * 0.7071)) / 2;
 	}
+	return 0;
+}
+static int _audio_downmix_decklink_interleaved_smpte312(struct ctx_s *ctx, const int16_t *planes[], uint32_t planeCount,
+	uint32_t sampleCount, float *buf)
+{
+	/* Take ch0(L) and ch1(R), ch2(C), ch3(lfe), ch4(LS), ch(RS) into the analyzers */
+	const int32_t *s = (const int32_t *)planes[0];
+	int audioInputChannels = 16;
+
+	for (uint32_t i = 0; i < sampleCount; i++) {
+
+		/* Stride is 16 samples in decklink */
+		float l   = pcm16_to_float(s[ (i * audioInputChannels) + 0] >> 16);
+		float r   = pcm16_to_float(s[ (i * audioInputChannels) + 1] >> 16);
+		float c   = pcm16_to_float(s[ (i * audioInputChannels) + 2] >> 16);
+		//float lfe = pcm16_to_float(s[ (i * audioInputChannels) + 3] >> 16); // Specifically not used
+		float ls  = pcm16_to_float(s[ (i * audioInputChannels) + 4] >> 16);
+		float rs  = pcm16_to_float(s[ (i * audioInputChannels) + 5] >> 16);
+
+		buf[i] = ((l * 0.7071) + (r * 0.7071) + (1.0 * c) + (0.5 * ls) + (0.5 * rs)) / 4;
+	}
+
+#if 0
+	static FILE *fh = NULL;
+	if (fh == NULL) {
+		fh = fopen("downmix-decklink-interleaved-stereo.f32", "wb");
+	}
+	if (fh) {
+		// ffmpeg -y -f f32le -ar 48000 -ac 1 -i downmix-decklink-interleaved-stereo.f32 /tmp/new.wav
+		fwrite(buf, 1, sampleCount * sizeof(float), fh);
+	}
+#endif
 
 	return 0;
 }
@@ -290,6 +327,8 @@ static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 		return _audio_downmix_stereo(ctx, planes, planeCount, sampleCount, buf);
 	case AUDIOTYPE_STEREO_S32_CH16_DECKLINK:
 		return _audio_downmix_decklink_interleaved_stereo(ctx, planes, planeCount, sampleCount, buf);
+	case AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK:
+		return _audio_downmix_decklink_interleaved_smpte312(ctx, planes, planeCount, sampleCount, buf);
 	default:
 		return -EINVAL;
 	}

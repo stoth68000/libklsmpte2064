@@ -21,6 +21,7 @@ enum klsmpte2064_audio_type_e
     AUDIOTYPE_UNDEFINED = 0,
     AUDIOTYPE_STEREO_S16P,
     AUDIOTYPE_STEREO_S32_CH16_DECKLINK,   /**< Decklink SDI input native format, 16 channels, interleaved S32le */
+    AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK,   /**< SMPTE312M discrete audio 5.1 downmix.  */
     AUDIOTYPE_MAX
 };
 
