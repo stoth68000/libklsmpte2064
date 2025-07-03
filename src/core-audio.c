@@ -46,12 +46,7 @@ const struct tbl3_s *lookupTable3Timebase(uint32_t num, uint32_t den)
 
 static inline float pcm16_to_float(int16_t sample)
 {
-    return sample >= 0 ? sample / 32767.0f : sample / 32768.0f;
-}
-
-static inline float pseudo_abs_float(float sample)
-{
-    return (sample >= 0.0f) ? sample : (-sample - (1.0f / 32768.0f));
+    return sample >= 0 ? (float)sample / 32767.0f : (float)sample / 32768.0f;
 }
 
 /* 5.3.6 - Decimator - on one mono buffer */
@@ -106,7 +101,7 @@ static void _audio_envelope_detector(struct ctx_s *ctx, uint32_t sampleCount, fl
 static void _audio_pseudo_abs_value(struct ctx_s *ctx, uint32_t sampleCount, float *a_wav)
 {
 	for (uint32_t i = 0; i < sampleCount; i++) {
-		a_wav[i] = pseudo_abs_float(a_wav[i]);
+		a_wav[i] = fabs(a_wav[i]);
 	}
 }
 
