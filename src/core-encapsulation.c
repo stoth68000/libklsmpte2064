@@ -119,6 +119,9 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 			case AUDIOTYPE_STEREO_S32_CH16_DECKLINK:
 				klbs_write_bits(ctx->bs, 0x02, 3); /* Downmix from 2.0-channel audio */
 				break;
+			case AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK:
+				klbs_write_bits(ctx->bs, 0x05, 3); /* Downmix from 5.1-channel audio */
+				break;
 			default:
 				klbs_write_bits(ctx->bs, 0x0, 3); /* Reserved for future use by SMPTE */
 			}
