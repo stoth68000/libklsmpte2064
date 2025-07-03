@@ -51,8 +51,9 @@ extern "C" {
 enum klsmpte2064_colorspace_e
 {
 	COLORSPACE_UNDEFINED = 0,
-	COLORSPACE_YUV420P,
-	COLORSPACE_V210,
+	COLORSPACE_YUV420P,       /**< Most commonly used with 8 bit codecs. */
+	COLORSPACE_V210,          /**< Most commonly used with Decklink SDI cards. */
+	COLORSPACE_MAX,
 };
 
 /**
