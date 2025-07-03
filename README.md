@@ -1,15 +1,19 @@
 # Introduction
 
 libklsmpte2064 is a library that generates SMPTE2064 media hashes.
-Its in its early development stages. Progressive video is supported.
-Inputs are restrictued to the YUV420p colorspace, common to
+Its in its early development stages. Progressive video is supported, interlaced not yet.
+Inputs are restricted to the YUV420p and V210 colorspaces, common to
 many video development projects.
 
 Functions exist to pass video frames into the framework, then have the fingerprints
-encapsulated into "containers". The user is responsible for disributing these. The standard SMPTE 2064-2 describes how to do this.
+encapsulated into "containers". The user is responsible for disributing these.
+The standard SMPTE 2064-2 describes how to do this.
 
-For audio support, the framework support stereo planar signed 16bit 48KHz only.
+For audio support, the framework supports:
+* Stereo planar signed 16bit 48KHz
+* Interleaved S32le as 16 channels 48KHz, stereo only (ch1/2), Decklink SDK native support.
 
+Video is in reasonable shape.
 Audio is still work in progress.
 
 Beyond this Readme.MD file, API level documentation can be generated via
