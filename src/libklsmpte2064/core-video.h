@@ -31,18 +31,29 @@ extern "C" {
  *
  * Callers that use klsmpte2064_video_push_wss_luma() can query this structure
  * to learn the exact source coordinates and horizontal prefilter offsets for
- * the context's configured video format. A GPU implementation should produce
- * one output luma sample for every row/column pair by averaging the valid
- * source pixels at column + prefilter_offsets[n]. Offsets that would fall
- * outside the source image are ignored, matching klsmpte2064_video_push().
+ * the context's configured video format.
+ *
+ * rows[r] is an absolute vertical luma pixel coordinate in the source image.
+ * columns[c] is an absolute horizontal luma pixel coordinate in the source
+ * image. prefilter_offsets[t] is added only to columns[c], never to rows[r].
+ * For each output sample, the caller computes:
+ *
+ * @code{.c}
+ * samples[r][c] = average_valid_taps(
+ *     Y[rows[r]][columns[c] + prefilter_offsets[t]]);
+ * @endcode
+ *
+ * Horizontal taps that would fall outside the source image are ignored,
+ * matching klsmpte2064_video_push(). The resulting sample block is passed to
+ * klsmpte2064_video_push_wss_luma() as samples[16][60].
  */
 struct klsmpte2064_video_wss_geometry {
-	uint32_t row_count; /**< Always KLSMPTE2064_WSS_ROWS for progressive video. */
-	uint32_t samples_per_row; /**< Always KLSMPTE2064_WSS_SAMPLES_PER_ROW. */
-	uint32_t prefilter_tap_count; /**< Number of valid entries in prefilter_offsets. */
-	int rows[KLSMPTE2064_WSS_ROWS]; /**< Source luma row for each WSS row. */
-	int columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /**< Source luma column for each WSS sample. */
-	int prefilter_offsets[KLSMPTE2064_VIDEO_PREFILTER_MAX_TAPS]; /**< Horizontal prefilter offsets. */
+	uint32_t row_count; /**< Number of vertical coordinates in rows[]. */
+	uint32_t samples_per_row; /**< Number of horizontal coordinates in columns[]. */
+	uint32_t prefilter_tap_count; /**< Number of valid horizontal taps in prefilter_offsets[]. */
+	int rows[KLSMPTE2064_WSS_ROWS]; /**< Absolute source luma Y coordinates. */
+	int columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /**< Absolute source luma X coordinates. */
+	int prefilter_offsets[KLSMPTE2064_VIDEO_PREFILTER_MAX_TAPS]; /**< Horizontal X offsets added to each columns[c]. */
 };
 
 /**
@@ -100,6 +111,14 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
  * width, height, progressive flag, and format table selection. Callers can use
  * the geometry to extract equivalent prefiltered 8-bit luma samples from GPU
  * surfaces, then submit them through klsmpte2064_video_push_wss_luma().
+ *
+ * For a 1920x1080 progressive source, the current table returns 16 vertical
+ * source rows from 178 through 898 and 60 horizontal source columns from 399
+ * through 1520, with horizontal prefilter offsets -1, 0, and 1. For example,
+ * samples[0][0] is the average of Y[178][398], Y[178][399], and Y[178][400],
+ * and samples[15][59] is the average of Y[898][1519], Y[898][1520], and
+ * Y[898][1521].
+ *
  * This function performs no dynamic allocation.
  *
  * @param[in] hdl A previously allocated context handle.

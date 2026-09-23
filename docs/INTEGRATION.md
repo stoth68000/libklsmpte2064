@@ -67,6 +67,77 @@ if (klsmpte2064_video_get_wss_geometry(hdl, &geometry) < 0) {
 klsmpte2064_video_push_wss_luma(hdl, samples);
 ```
 
+## 1920x1080 Sampling Example
+
+For a 1920x1080 progressive source, the geometry describes absolute luma pixel
+coordinates in the decoded source image:
+
+```c
+geometry.row_count = 16;
+geometry.samples_per_row = 60;
+geometry.prefilter_tap_count = 3;
+
+geometry.rows[0] = 178;
+geometry.rows[1] = 226;
+/* ... */
+geometry.rows[15] = 898;
+
+geometry.columns[0] = 399;
+geometry.columns[1] = 418;
+/* ... */
+geometry.columns[59] = 1520;
+
+geometry.prefilter_offsets[0] = -1;
+geometry.prefilter_offsets[1] = 0;
+geometry.prefilter_offsets[2] = 1;
+```
+
+The application produces one 8-bit output sample for each row/column pair and
+stores it in the same position in the `samples[16][60]` block:
+
+```c
+for (uint32_t r = 0; r < geometry.row_count; r++) {
+    int y = geometry.rows[r];
+
+    for (uint32_t c = 0; c < geometry.samples_per_row; c++) {
+        int x = geometry.columns[c];
+        int sum = 0;
+        int count = 0;
+
+        for (uint32_t t = 0; t < geometry.prefilter_tap_count; t++) {
+            int tap_x = x + geometry.prefilter_offsets[t];
+
+            if (tap_x >= 0 && tap_x < 1920) {
+                sum += source_luma[y][tap_x];
+                count++;
+            }
+        }
+
+        samples[r][c] = (uint8_t)(sum / count);
+    }
+}
+```
+
+For example:
+
+- `samples[0][0]` comes from row `178`, column `399`, averaged with horizontal
+  taps `398`, `399`, and `400`.
+- `samples[0][1]` comes from row `178`, column `418`, averaged with horizontal
+  taps `417`, `418`, and `419`.
+- `samples[15][59]` comes from row `898`, column `1520`, averaged with
+  horizontal taps `1519`, `1520`, and `1521`.
+
+After the block is filled, the application submits it:
+
+```c
+klsmpte2064_video_push_wss_luma(hdl, samples);
+```
+
+For Iris, the same mapping can be implemented in a Metal kernel: the geometry
+arrays are copied once for the source format, the kernel reads the luma texture
+at those coordinates, writes the 960 averaged 8-bit values into `samples`, and
+the CPU passes that compact block to libklsmpte2064.
+
 ## Hot Path Allocation Contract
 
 After successful context allocation, these calls perform no dynamic allocation:
