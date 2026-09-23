@@ -448,6 +448,9 @@ int klsmpte2064_audio_push(klsmpte2064_context *hdl, enum klsmpte2064_audio_type
 		}
 		ctx->timebase_num = timebase_num;
 		ctx->timebase_den = timebase_den;
+	} else if (ctx->timebase_num != timebase_num ||
+		ctx->timebase_den != timebase_den) {
+		return -EINVAL;
 	}
 
 	/* Reset the fingerprint for the type */

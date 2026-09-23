@@ -53,13 +53,23 @@ block, then submits that block to the library.
 
 ```c
 klsmpte2064_context *hdl = NULL;
+struct klsmpte2064_source_config config = {0};
 struct klsmpte2064_video_wss_geometry geometry;
 struct klsmpte2064_video_wss_sampler_plan plan;
 struct klsmpte2064_video_push_result result;
 uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW];
 
-if (klsmpte2064_context_alloc_wss_luma(&hdl, 1, width, height) < 0) {
-    /* Unsupported format or allocation failure. */
+config.size = sizeof(config);
+config.version = KLSMPTE2064_STRUCT_VERSION_1;
+config.progressive = 1;
+config.width = width;
+config.height = height;
+config.timebase_num = 1001;
+config.timebase_den = 60000;
+config.max_audio_sample_count = 2300;
+
+if (klsmpte2064_context_alloc_source(&hdl, &config) < 0) {
+    /* Unsupported geometry, unsupported timebase, or allocation failure. */
 }
 
 if (klsmpte2064_video_get_wss_geometry(hdl, &geometry) < 0) {
@@ -188,7 +198,9 @@ After successful context allocation, these calls perform no dynamic allocation:
 - `klsmpte2064_fingerprint_get`
 - `klsmpte2064_encapsulation_set_metadata`
 - `klsmpte2064_encapsulation_get_metadata`
+- `klsmpte2064_encapsulation_max_size`
 - `klsmpte2064_encapsulation_pack`
+- `klsmpte2064_encapsulation_pack_if_ready`
 - `klsmpte2064_video_reset`
 - `klsmpte2064_audio_reset`
 - `klsmpte2064_context_reset`
@@ -198,13 +210,20 @@ This contract is covered by the unit tests so regressions are caught by
 allocation-free guarantee because it may resize internal work buffers if
 `sampleCount` exceeds the context's current audio capacity.
 
-After at least three video frames have been pushed, fingerprints can be packed:
+After at least three video frames have been pushed, fingerprints can be packed.
+Query the maximum required output size instead of hard-coding a buffer length:
 
 ```c
-uint8_t section[256];
+uint32_t max_section_size = 0;
+uint8_t section[KLSMPTE2064_ENCAPSULATION_MAX_BYTES];
 uint32_t used = 0;
 
-if (klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &used) == 0) {
+klsmpte2064_encapsulation_max_size(hdl, &max_section_size);
+
+if (klsmpte2064_encapsulation_pack_if_ready(hdl,
+                                            section,
+                                            max_section_size,
+                                            &used) == 0) {
     /* section[0..used) contains the SMPTE 2064 fingerprint container. */
 }
 ```
@@ -286,9 +305,17 @@ struct klsmpte2064_video_push_result result;
 
 if (klsmpte2064_video_push_wss_luma_result(hdl, samples, &result) == 0 &&
     result.status.pack_ready) {
-    klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &used);
+    klsmpte2064_encapsulation_pack_if_ready(hdl,
+                                            section,
+                                            sizeof(section),
+                                            &used);
 }
 ```
+
+`klsmpte2064_context_alloc_source()` can set the initial audio work-buffer
+capacity. Choose a `max_audio_sample_count` large enough for the integration's
+expected frame cadence so `klsmpte2064_audio_push()` does not need to resize
+buffers on the realtime path.
 
 ## CPU Reference Extractors
 

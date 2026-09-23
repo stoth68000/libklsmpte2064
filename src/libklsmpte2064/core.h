@@ -118,6 +118,12 @@ typedef void klsmpte2064_context;
 #define KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS (1u << 11)
 /** Error string API is available. */
 #define KLSMPTE2064_CAP_ERROR_STRINGS (1u << 12)
+/** Source configuration allocation API is available. */
+#define KLSMPTE2064_CAP_SOURCE_CONFIG_API (1u << 13)
+/** Encapsulation maximum-size query API is available. */
+#define KLSMPTE2064_CAP_ENCAPSULATION_MAX_SIZE (1u << 14)
+/** Encapsulation pack-if-ready API is available. */
+#define KLSMPTE2064_CAP_ENCAPSULATION_PACK_IF_READY (1u << 15)
 
 /** Capability set expected by the GPU direct-WSS integration path. */
 #define KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES \
@@ -133,7 +139,10 @@ typedef void klsmpte2064_context;
 	 KLSMPTE2064_CAP_VIDEO_PUSH_RESULT | \
 	 KLSMPTE2064_CAP_PICTURE_RATE_HELPERS | \
 	 KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS | \
-	 KLSMPTE2064_CAP_ERROR_STRINGS)
+	 KLSMPTE2064_CAP_ERROR_STRINGS | \
+	 KLSMPTE2064_CAP_SOURCE_CONFIG_API | \
+	 KLSMPTE2064_CAP_ENCAPSULATION_MAX_SIZE | \
+	 KLSMPTE2064_CAP_ENCAPSULATION_PACK_IF_READY)
 
 /** Version value used by extensible public structs introduced in API 1.0. */
 #define KLSMPTE2064_STRUCT_VERSION_1 1u

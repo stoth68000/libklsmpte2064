@@ -453,6 +453,9 @@ static int test_version_capabilities_and_format_probing(void)
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_PICTURE_RATE_HELPERS) != 0);
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS) != 0);
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_ERROR_STRINGS) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_SOURCE_CONFIG_API) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_ENCAPSULATION_MAX_SIZE) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_ENCAPSULATION_PACK_IF_READY) != 0);
 	EXPECT_EQ_INT(1,
 		klsmpte2064_capabilities_satisfy(
 			KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES));
@@ -666,6 +669,143 @@ static int test_encapsulation_metadata_api(void)
 	EXPECT_EQ_INT(-EINVAL, klsmpte2064_encapsulation_set_metadata(hdl, &metadata));
 	metadata.id_length = KLSMPTE2064_ENCAPSULATION_ID_MAX_BYTES + 1;
 	EXPECT_EQ_INT(-EINVAL, klsmpte2064_encapsulation_set_metadata(hdl, &metadata));
+
+	klsmpte2064_context_free(hdl);
+	return 0;
+}
+
+static int test_source_config_and_pack_helper_apis(void)
+{
+	klsmpte2064_context *hdl = NULL;
+	struct klsmpte2064_source_config config = {0};
+	struct klsmpte2064_encapsulation_metadata metadata = {0};
+	struct klsmpte2064_context_status status = {0};
+	uint8_t section[KLSMPTE2064_ENCAPSULATION_MAX_BYTES] = {0};
+	uint32_t max_size = 0;
+	uint32_t used_length = 99;
+	enum { SAMPLE_COUNT = 2300, DECKLINK_CHANNELS = 16 };
+	int16_t left[SAMPLE_COUNT] = {0};
+	int16_t right[SAMPLE_COUNT] = {0};
+	int32_t decklink[SAMPLE_COUNT * DECKLINK_CHANNELS] = {0};
+	const int16_t *stereo_planes[2] = {left, right};
+	uint64_t before = 0;
+	uint64_t after = 0;
+
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_alloc_source(NULL, &config));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_alloc_source(&hdl, NULL));
+	EXPECT_TRUE(hdl == NULL);
+
+	config.size = sizeof(config);
+	config.version = KLSMPTE2064_STRUCT_VERSION_1;
+	config.progressive = 1;
+	config.width = 640;
+	config.height = 360;
+	config.timebase_num = 1001;
+	config.timebase_den = 60000;
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_alloc_source(&hdl, &config));
+	EXPECT_TRUE(hdl == NULL);
+
+	config.width = 1920;
+	config.height = 1080;
+	config.timebase_num = 1;
+	config.timebase_den = 1000;
+	EXPECT_EQ_INT(-ENOTSUP, klsmpte2064_context_alloc_source(&hdl, &config));
+	EXPECT_TRUE(hdl == NULL);
+
+	config.timebase_num = 1001;
+	config.timebase_den = 60000;
+	config.max_audio_sample_count = SAMPLE_COUNT;
+	EXPECT_EQ_INT(0, klsmpte2064_context_alloc_source(&hdl, &config));
+	EXPECT_TRUE(hdl != NULL);
+
+	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
+	EXPECT_EQ_INT(1001, (int)status.timebase_num);
+	EXPECT_EQ_INT(60000, (int)status.timebase_den);
+	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_get_metadata(hdl, &metadata));
+	EXPECT_EQ_INT(KLSMPTE2064_PICTURE_RATE_5994, metadata.picture_rate);
+	EXPECT_EQ_INT(1, metadata.id_present);
+	EXPECT_EQ_INT(2, metadata.id_length);
+	EXPECT_EQ_U8('K', metadata.id_data[0]);
+	EXPECT_EQ_U8('L', metadata.id_data[1]);
+
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_encapsulation_max_size(NULL, &max_size));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_encapsulation_max_size(hdl, NULL));
+	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_max_size(hdl, &max_size));
+	EXPECT_EQ_INT(KLSMPTE2064_ENCAPSULATION_MAX_BYTES, (int)max_size);
+
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_encapsulation_pack_if_ready(NULL,
+			section,
+			sizeof(section),
+			&used_length));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_encapsulation_pack_if_ready(hdl,
+			NULL,
+			sizeof(section),
+			&used_length));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_encapsulation_pack_if_ready(hdl,
+			section,
+			sizeof(section),
+			NULL));
+	EXPECT_EQ_INT(-ENODATA,
+		klsmpte2064_encapsulation_pack_if_ready(hdl,
+			section,
+			sizeof(section),
+			&used_length));
+	EXPECT_EQ_INT(0, (int)used_length);
+
+	fill_audio_fixture(left,
+		right,
+		decklink,
+		SAMPLE_COUNT,
+		DECKLINK_CHANNELS);
+	before = klsmpte2064_test_allocation_count();
+	EXPECT_EQ_INT(0,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S16P,
+			1001,
+			60000,
+			stereo_planes,
+			2,
+			SAMPLE_COUNT));
+	after = klsmpte2064_test_allocation_count();
+	EXPECT_TRUE(before == after);
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S16P,
+			1,
+			60,
+			stereo_planes,
+			2,
+			SAMPLE_COUNT));
+
+	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_encapsulation_pack_if_ready(hdl,
+			section,
+			sizeof(section),
+			&used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_TRUE(used_length > sizeof(GOLDEN_YUV_VIDEO_SECTION));
+
+	klsmpte2064_context_free(hdl);
+	hdl = NULL;
+
+	config.metadata_present = 1;
+	config.metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_UNKNOWN;
+	config.metadata.id_present = 1;
+	config.metadata.id_length = 3;
+	config.metadata.id_data[0] = 'G';
+	config.metadata.id_data[1] = 'P';
+	config.metadata.id_data[2] = 'U';
+	EXPECT_EQ_INT(0, klsmpte2064_context_alloc_source(&hdl, &config));
+	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_get_metadata(hdl, &metadata));
+	EXPECT_EQ_INT(KLSMPTE2064_PICTURE_RATE_5994, metadata.picture_rate);
+	EXPECT_EQ_INT(3, metadata.id_length);
+	EXPECT_EQ_U8('G', metadata.id_data[0]);
+	EXPECT_EQ_U8('P', metadata.id_data[1]);
+	EXPECT_EQ_U8('U', metadata.id_data[2]);
 
 	klsmpte2064_context_free(hdl);
 	return 0;
@@ -1652,6 +1792,7 @@ static int test_hot_path_no_allocations(void)
 	uint8_t samples[KLSMPTE2064_WSS_ROWS]
 		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
 	uint8_t section[256] = {0};
+	uint32_t max_size = 0;
 	uint32_t used_length = 0;
 	const uint32_t width = 1920;
 	const uint32_t height = 1080;
@@ -1708,7 +1849,14 @@ static int test_hot_path_no_allocations(void)
 	metadata.id_data[1] = 'L';
 	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_set_metadata(hdl, &metadata));
 	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_get_metadata(hdl, &metadata));
+	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_max_size(hdl, &max_size));
+	EXPECT_EQ_INT(KLSMPTE2064_ENCAPSULATION_MAX_BYTES, (int)max_size);
 	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_encapsulation_pack_if_ready(hdl,
+			section,
+			sizeof(section),
+			&used_length));
 	EXPECT_EQ_INT(0, klsmpte2064_video_reset(hdl));
 	EXPECT_EQ_INT(0,
 		klsmpte2064_audio_reset(hdl, AUDIOTYPE_STEREO_S16P));
@@ -1740,6 +1888,8 @@ int main(void)
 		{ "YUV420P padded stride golden video section",
 			test_yuv420p_padded_stride_golden_video_section },
 		{ "encapsulation metadata API", test_encapsulation_metadata_api },
+		{ "source config and pack helper APIs",
+			test_source_config_and_pack_helper_apis },
 		{ "direct WSS luma golden video sections",
 			test_wss_luma_golden_video_sections },
 		{ "WSS geometry API", test_wss_geometry_api },

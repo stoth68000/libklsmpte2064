@@ -21,6 +21,8 @@ extern "C" {
 
 /** Maximum ID payload bytes supported by the encapsulation ID sub-container. */
 #define KLSMPTE2064_ENCAPSULATION_ID_MAX_BYTES 31
+/** Maximum packed fingerprint section size currently required by the library. */
+#define KLSMPTE2064_ENCAPSULATION_MAX_BYTES 256
 
 /** SMPTE ST 2064/S253 picture-rate codes used in packed fingerprint sections. */
 enum klsmpte2064_picture_rate_e
@@ -107,6 +109,44 @@ KLSMPTE2064_API int klsmpte2064_encapsulation_get_metadata(klsmpte2064_context *
  * allocation.
  */
 KLSMPTE2064_API int klsmpte2064_encapsulation_pack(klsmpte2064_context *hdl,
+	uint8_t *data,
+	uint32_t len,
+	uint32_t *usedLength);
+
+/**
+ * @brief Query the maximum output buffer size needed for encapsulation.
+ *
+ * The value is stable for the current context and can be used to size caller
+ * storage instead of hard-coding KLSMPTE2064_ENCAPSULATION_MAX_BYTES.
+ * This function performs no dynamic allocation.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[out] max_bytes Receives the required output buffer size in bytes.
+ * @return 0 on success.
+ * @return -EINVAL when hdl or max_bytes is NULL.
+ */
+KLSMPTE2064_API int klsmpte2064_encapsulation_max_size(
+	klsmpte2064_context *hdl,
+	uint32_t *max_bytes);
+
+/**
+ * @brief Pack a fingerprint section only when current state is ready.
+ *
+ * This is a convenience wrapper around klsmpte2064_context_status() and
+ * klsmpte2064_encapsulation_pack(). It returns -ENODATA when the context is
+ * valid but not yet ready to emit a section.
+ * This function performs no dynamic allocation.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[out] data User-supplied output buffer.
+ * @param[in] len Output buffer length in bytes.
+ * @param[out] usedLength Number of output bytes used, zero when not ready.
+ * @return 0 on success.
+ * @return -ENODATA when the context is not ready to pack.
+ * @return -EINVAL on invalid arguments.
+ */
+KLSMPTE2064_API int klsmpte2064_encapsulation_pack_if_ready(
+	klsmpte2064_context *hdl,
 	uint8_t *data,
 	uint32_t len,
 	uint32_t *usedLength);

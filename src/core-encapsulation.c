@@ -85,7 +85,8 @@ int klsmpte2064_encapsulation_get_metadata(klsmpte2064_context *hdl,
 int klsmpte2064_encapsulation_pack(klsmpte2064_context *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
-	if (!ctx || !data || !usedLength || len < 256) {
+	if (!ctx || !data || !usedLength ||
+		len < KLSMPTE2064_ENCAPSULATION_MAX_BYTES) {
 		return -EINVAL;
 	}
 	if (ctx->fingerprints_calculated < 3) {
@@ -242,4 +243,40 @@ int klsmpte2064_encapsulation_pack(klsmpte2064_context *hdl, uint8_t *data, uint
 	*usedLength = klbs_get_byte_count(ctx->bs);
 
 	return 0;
+}
+
+int klsmpte2064_encapsulation_max_size(klsmpte2064_context *hdl,
+	uint32_t *max_bytes)
+{
+	if (!hdl || !max_bytes) {
+		return -EINVAL;
+	}
+
+	*max_bytes = KLSMPTE2064_ENCAPSULATION_MAX_BYTES;
+	return 0;
+}
+
+int klsmpte2064_encapsulation_pack_if_ready(klsmpte2064_context *hdl,
+	uint8_t *data,
+	uint32_t len,
+	uint32_t *usedLength)
+{
+	struct klsmpte2064_context_status status = {0};
+	int ret = 0;
+
+	if (!hdl || !data || !usedLength ||
+		len < KLSMPTE2064_ENCAPSULATION_MAX_BYTES) {
+		return -EINVAL;
+	}
+	*usedLength = 0;
+
+	ret = klsmpte2064_context_status(hdl, &status);
+	if (ret < 0) {
+		return ret;
+	}
+	if (!status.pack_ready) {
+		return -ENODATA;
+	}
+
+	return klsmpte2064_encapsulation_pack(hdl, data, len, usedLength);
 }

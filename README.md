@@ -16,6 +16,8 @@ GPU-native integrations.
 - Progressive video fingerprinting for supported SMPTE 2064 geometry tables.
 - CPU frame input for 8-bit YUV420P luma and packed 10-bit V210.
 - Direct 16x60 windowed-subsampled luma input for GPU pipelines.
+- Source-level configuration API for validating geometry, timebase, metadata,
+  and initial audio capacity in one allocation call.
 - Geometry and flattened sampler-plan queries that tell applications exactly
   which source luma pixels to sample.
 - CPU reference extractors for validating GPU samplers.
@@ -45,11 +47,21 @@ required luma taps, and pushes the resulting 16x60 8-bit sample block.
 
 ```c
 klsmpte2064_context *hdl = NULL;
+struct klsmpte2064_source_config config = {0};
 struct klsmpte2064_video_wss_sampler_plan plan;
 struct klsmpte2064_video_push_result result;
 uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW];
 
-klsmpte2064_context_alloc_wss_luma(&hdl, 1, width, height);
+config.size = sizeof(config);
+config.version = KLSMPTE2064_STRUCT_VERSION_1;
+config.progressive = 1;
+config.width = width;
+config.height = height;
+config.timebase_num = 1001;
+config.timebase_den = 60000;
+config.max_audio_sample_count = 2300;
+
+klsmpte2064_context_alloc_source(&hdl, &config);
 klsmpte2064_video_get_wss_sampler_plan(hdl, &plan);
 
 /* GPU fills samples[r][c] by averaging the absolute luma taps in plan. */
@@ -77,7 +89,9 @@ allocation:
 - `klsmpte2064_fingerprint_get`
 - `klsmpte2064_encapsulation_set_metadata`
 - `klsmpte2064_encapsulation_get_metadata`
+- `klsmpte2064_encapsulation_max_size`
 - `klsmpte2064_encapsulation_pack`
+- `klsmpte2064_encapsulation_pack_if_ready`
 - `klsmpte2064_video_reset`
 - `klsmpte2064_audio_reset`
 - `klsmpte2064_context_reset`

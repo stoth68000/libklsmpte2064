@@ -43,6 +43,7 @@ struct tbl3_s
 	uint32_t timebase_den;
 };
 const struct tbl3_s *lookupTable3(double video_frame_rate);
+const struct tbl3_s *lookupTable3Timebase(uint32_t num, uint32_t den);
 
 struct ctx_s
 {

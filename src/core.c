@@ -70,7 +70,10 @@ uint32_t klsmpte2064_capabilities(void)
 		KLSMPTE2064_CAP_VIDEO_PUSH_RESULT |
 		KLSMPTE2064_CAP_PICTURE_RATE_HELPERS |
 		KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS |
-		KLSMPTE2064_CAP_ERROR_STRINGS;
+		KLSMPTE2064_CAP_ERROR_STRINGS |
+		KLSMPTE2064_CAP_SOURCE_CONFIG_API |
+		KLSMPTE2064_CAP_ENCAPSULATION_MAX_SIZE |
+		KLSMPTE2064_CAP_ENCAPSULATION_PACK_IF_READY;
 }
 
 int klsmpte2064_capabilities_satisfy(uint32_t required)
@@ -107,7 +110,8 @@ static int context_alloc_common(klsmpte2064_context **hdl,
 	uint32_t height,
 	uint32_t stride,
 	uint32_t bitdepth,
-	int direct_wss_luma)
+	int direct_wss_luma,
+	uint32_t max_audio_sample_count)
 {
 	struct ctx_s *ctx = NULL;
 	int ret = 0;
@@ -146,7 +150,8 @@ static int context_alloc_common(klsmpte2064_context **hdl,
 	ctx->inputstride = stride;
 	ctx->progressive = progressive;
 	ctx->per_pixel_motion_threshold = 32;
-	ctx->audioMaxSampleCount = 2200;
+	ctx->audioMaxSampleCount = max_audio_sample_count ?
+		(int)max_audio_sample_count : 2200;
 	ctx->encapsulation_metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_5994;
 	ctx->encapsulation_metadata.id_present = 1;
 	ctx->encapsulation_metadata.id_length = 2;
@@ -226,6 +231,7 @@ int klsmpte2064_context_alloc(klsmpte2064_context **hdl,
 		height,
 		stride,
 		bitdepth,
+		0,
 		0);
 }
 
@@ -241,7 +247,81 @@ int klsmpte2064_context_alloc_wss_luma(klsmpte2064_context **hdl,
 		height,
 		0,
 		8,
-		1);
+		1,
+		0);
+}
+
+int klsmpte2064_context_alloc_source(klsmpte2064_context **hdl,
+	const struct klsmpte2064_source_config *config)
+{
+	klsmpte2064_context *ctx = NULL;
+	struct klsmpte2064_encapsulation_metadata metadata = {0};
+	uint8_t picture_rate = KLSMPTE2064_PICTURE_RATE_UNKNOWN;
+	int ret = 0;
+
+	if (!hdl || !config) {
+		return -EINVAL;
+	}
+	*hdl = NULL;
+
+	if (config->size != sizeof(*config) ||
+		config->version != KLSMPTE2064_STRUCT_VERSION_1 ||
+		config->reserved != 0 ||
+		!klsmpte2064_video_wss_luma_format_supported(config->progressive,
+			config->width,
+			config->height)) {
+		return -EINVAL;
+	}
+	ret = klsmpte2064_picture_rate_from_timebase(config->timebase_num,
+		config->timebase_den,
+		&picture_rate);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = context_alloc_common(&ctx,
+		COLORSPACE_UNDEFINED,
+		config->progressive,
+		config->width,
+		config->height,
+		0,
+		8,
+		1,
+		config->max_audio_sample_count);
+	if (ret < 0) {
+		return ret;
+	}
+
+	if (config->metadata_present) {
+		metadata = config->metadata;
+		if (metadata.picture_rate == KLSMPTE2064_PICTURE_RATE_UNKNOWN) {
+			metadata.picture_rate = picture_rate;
+		}
+	} else {
+		ret = klsmpte2064_encapsulation_get_metadata(ctx, &metadata);
+		if (ret < 0) {
+			goto fail;
+		}
+		metadata.picture_rate = picture_rate;
+	}
+
+	ret = klsmpte2064_encapsulation_set_metadata(ctx, &metadata);
+	if (ret < 0) {
+		goto fail;
+	}
+
+	struct ctx_s *private_ctx = (struct ctx_s *)ctx;
+	private_ctx->t3 = lookupTable3Timebase(config->timebase_num,
+		config->timebase_den);
+	private_ctx->timebase_num = config->timebase_num;
+	private_ctx->timebase_den = config->timebase_den;
+
+	*hdl = ctx;
+	return 0;
+
+fail:
+	klsmpte2064_context_free(ctx);
+	return ret;
 }
 
 void klsmpte2064_context_free(klsmpte2064_context *hdl)

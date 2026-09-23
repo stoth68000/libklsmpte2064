@@ -3,7 +3,7 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 api_version=@VERSION@
-gpu_direct_wss_required_capabilities=0x1fff
+gpu_direct_wss_required_capabilities=0xffff
 
 Name: libklsmpte2064
 Description: Kernel Labs Library implementing SMPTE2064
