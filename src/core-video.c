@@ -8,7 +8,7 @@
 #include <inttypes.h>
 
 static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stride);
-static int _video_window_subsampling_progressive(struct ctx_s *ctx, int src_stride);
+static int _video_window_subsampling_progressive(struct ctx_s *ctx);
 static int _video_window_compute_motion(struct ctx_s *ctx);
 
 /* Table 1 - Video Format Prefilter */
@@ -108,7 +108,7 @@ int _video_push_yuv420p(struct ctx_s *ctx, const uint8_t *lumaplane, int src_str
 	}
 
 	/* Step 2: windowing */
-	r = _video_window_subsampling_progressive(ctx, src_stride);
+	r = _video_window_subsampling_progressive(ctx);
 	if (r < 0) {
 		return -1;
 	}
@@ -140,7 +140,6 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	}
 
 	if (ctx->colorspace == COLORSPACE_YUV420P) {
-		/* possible optimization here, make a list of lines we need to process, same as V210. */
 		return _video_push_yuv420p(ctx, lumaplane, ctx->inputstride);
 	}
 	if (ctx->colorspace == COLORSPACE_V210) {
@@ -150,11 +149,9 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	return -1;
 }
 
-/* Clone the luma plane into our content, and apply -3-2/-1 prefilters
- * per format during the process.
- * TODO: This prefilters the entire frame.
- * technically we only need to do pre-filtering on lines we eventually
- * care about, 16 of them.
+/* Copy the luma rows that feed the fingerprint into our context and apply the
+ * per-format horizontal prefilter. Rows outside the 16-row sampling window never
+ * influence the resulting fingerprint.
  */
 static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stride)
 {
@@ -164,7 +161,7 @@ static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stri
 			int h = ctx->wss_lines[i];
 			for (int w = 0; w < ctx->width; w++) {
 
-				uint8_t *dstline = ctx->y + (src_stride * h);
+				uint8_t *dstline = ctx->y + (ctx->ystride * h);
 				uint8_t *srcline = (uint8_t *)luma + (src_stride * h);
 				
 				if (ctx->t1->pfcount == 0) {
@@ -194,7 +191,7 @@ static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stri
 		for (int h = 0; h < ctx->height; h++) {
 			for (int w = 0; w < ctx->width; w++) {
 
-				uint8_t *dstline = ctx->y + (src_stride * h);
+				uint8_t *dstline = ctx->y + (ctx->ystride * h);
 				uint8_t *srcline = (uint8_t *)luma + (src_stride * h);
 				
 				if (ctx->t1->pfcount == 0) {
@@ -224,7 +221,7 @@ static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stri
 }
 
 /* See 5.2.2 and Figure 3 */
-static int _video_window_subsampling_progressive(struct ctx_s *ctx, int src_stride)
+static int _video_window_subsampling_progressive(struct ctx_s *ctx)
 {
 	if (!ctx->progressive) {
 		return -1;
@@ -241,7 +238,7 @@ static int _video_window_subsampling_progressive(struct ctx_s *ctx, int src_stri
 
 	for (int r = 0; r < WSS_ROWS; r++) {
 		int gridh = ctx->t2->hstart;
-		uint8_t *srcline = (ctx->y + (gridv * src_stride));
+		uint8_t *srcline = (ctx->y + (gridv * ctx->ystride));
 		//printf(MODULE_PREFIX "gridv %4d: ", gridv);
 
 		for (int c = 0; c < WSS_SAMPLES_PER_ROW; c++) {

@@ -344,6 +344,39 @@ static int test_yuv420p_golden_video_sections(void)
 	return 0;
 }
 
+static int test_yuv420p_padded_stride_golden_video_section(void)
+{
+	void *hdl = NULL;
+	const uint32_t width = 1280;
+	const uint32_t height = 720;
+	const uint32_t stride = width + 64;
+	const size_t frame_size = (size_t)stride * height;
+	uint8_t *frame = calloc(1, frame_size);
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+
+	EXPECT_TRUE(frame != NULL);
+	EXPECT_EQ_INT(0,
+		alloc_context(&hdl,
+			COLORSPACE_YUV420P,
+			width,
+			height,
+			stride,
+			8));
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, frame_size));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION),
+			section,
+			used_length));
+
+	klsmpte2064_context_free(hdl);
+	free(frame);
+	return 0;
+}
+
 static int test_yuv420p_golden_audio_section(void)
 {
 	void *hdl = NULL;
@@ -702,6 +735,8 @@ int main(void)
 	const struct test_case tests[] = {
 		{ "context API validation", test_context_api },
 		{ "YUV420P golden video sections", test_yuv420p_golden_video_sections },
+		{ "YUV420P padded stride golden video section",
+			test_yuv420p_padded_stride_golden_video_section },
 		{ "YUV420P golden audio section", test_yuv420p_golden_audio_section },
 		{ "YUV420P video and encapsulation validation",
 			test_video_api_yuv420p_and_encapsulation_validation },
