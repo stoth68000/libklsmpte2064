@@ -64,7 +64,13 @@ uint32_t klsmpte2064_capabilities(void)
 		KLSMPTE2064_CAP_RESET_APIS |
 		KLSMPTE2064_CAP_FORMAT_PROBING |
 		KLSMPTE2064_CAP_STATUS_API |
-		KLSMPTE2064_CAP_RAW_FINGERPRINT_API;
+		KLSMPTE2064_CAP_RAW_FINGERPRINT_API |
+		KLSMPTE2064_CAP_ENCAPSULATION_METADATA;
+}
+
+int klsmpte2064_capabilities_satisfy(uint32_t required)
+{
+	return (klsmpte2064_capabilities() & required) == required;
 }
 
 static int context_alloc_common(void **hdl,
@@ -114,6 +120,11 @@ static int context_alloc_common(void **hdl,
 	ctx->progressive = progressive;
 	ctx->per_pixel_motion_threshold = 32;
 	ctx->audioMaxSampleCount = 2200;
+	ctx->encapsulation_metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_5994;
+	ctx->encapsulation_metadata.id_present = 1;
+	ctx->encapsulation_metadata.id_length = 2;
+	ctx->encapsulation_metadata.id_data[0] = 'K';
+	ctx->encapsulation_metadata.id_data[1] = 'L';
 
 	if (!direct_wss_luma) {
 		ctx->ystride = width;

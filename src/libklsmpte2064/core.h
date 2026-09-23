@@ -79,6 +79,16 @@ extern "C" {
 /** Patch version of the public API. */
 #define KLSMPTE2064_VERSION_PATCH 0
 
+/** Encode a public API version as a sortable integer. */
+#define KLSMPTE2064_API_VERSION_ENCODE(major, minor, patch) \
+	((((uint32_t)(major)) << 16) | (((uint32_t)(minor)) << 8) | \
+	((uint32_t)(patch)))
+/** Public API version encoded with KLSMPTE2064_API_VERSION_ENCODE(). */
+#define KLSMPTE2064_API_VERSION \
+	KLSMPTE2064_API_VERSION_ENCODE(KLSMPTE2064_VERSION_MAJOR, \
+		KLSMPTE2064_VERSION_MINOR, \
+		KLSMPTE2064_VERSION_PATCH)
+
 /** Direct 16x60 WSS luma input is available. */
 #define KLSMPTE2064_CAP_DIRECT_WSS_LUMA (1u << 0)
 /** YUV420P CPU WSS extractor is available. */
@@ -93,6 +103,19 @@ extern "C" {
 #define KLSMPTE2064_CAP_STATUS_API (1u << 5)
 /** Raw fingerprint query API is available. */
 #define KLSMPTE2064_CAP_RAW_FINGERPRINT_API (1u << 6)
+/** Encapsulation metadata configuration API is available. */
+#define KLSMPTE2064_CAP_ENCAPSULATION_METADATA (1u << 7)
+
+/** Capability set expected by the Iris direct-WSS integration path. */
+#define KLSMPTE2064_IRIS_DIRECT_WSS_REQUIRED_CAPABILITIES \
+	(KLSMPTE2064_CAP_DIRECT_WSS_LUMA | \
+	 KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P | \
+	 KLSMPTE2064_CAP_WSS_EXTRACT_V210 | \
+	 KLSMPTE2064_CAP_RESET_APIS | \
+	 KLSMPTE2064_CAP_FORMAT_PROBING | \
+	 KLSMPTE2064_CAP_STATUS_API | \
+	 KLSMPTE2064_CAP_RAW_FINGERPRINT_API | \
+	 KLSMPTE2064_CAP_ENCAPSULATION_METADATA)
 
 /**
  * @brief Video input format identifiers.
@@ -134,6 +157,14 @@ KLSMPTE2064_API void klsmpte2064_version(uint32_t *major,
  * @return Bitmask of KLSMPTE2064_CAP_* flags.
  */
 KLSMPTE2064_API uint32_t klsmpte2064_capabilities(void);
+
+/**
+ * @brief Test whether a required capability mask is fully supported.
+ *
+ * @param[in] required Bitmask of KLSMPTE2064_CAP_* values.
+ * @return 1 when every required capability is present, otherwise 0.
+ */
+KLSMPTE2064_API int klsmpte2064_capabilities_satisfy(uint32_t required);
 
 /**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.

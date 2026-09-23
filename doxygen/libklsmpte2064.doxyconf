@@ -790,6 +790,7 @@ WARN_LOGFILE           =
 
 INPUT                  = ../README.md \
 		         ../docs/INTEGRATION.md \
+		         ../docs/GPU-SAMPLER-TEST-VECTORS.md \
 		         ../src/libklsmpte2064
 
 

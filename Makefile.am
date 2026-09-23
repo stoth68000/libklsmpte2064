@@ -1,6 +1,7 @@
 AUTOMAKE_OPTIONS = foreign
 SUBDIRS = src tools tests
-EXTRA_DIST = doxygen/libklsmpte2064.doxyconf doxygen/include docs/INTEGRATION.md
+EXTRA_DIST = doxygen/libklsmpte2064.doxyconf doxygen/include \
+	docs/INTEGRATION.md docs/GPU-SAMPLER-TEST-VECTORS.md
 
 docs:
 	cd doxygen && doxygen libklsmpte2064.doxyconf

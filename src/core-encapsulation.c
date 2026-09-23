@@ -6,6 +6,49 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int metadata_is_valid(const struct klsmpte2064_encapsulation_metadata *metadata)
+{
+	if (!metadata ||
+		metadata->picture_rate > KLSMPTE2064_PICTURE_RATE_60 ||
+		metadata->id_length > KLSMPTE2064_ENCAPSULATION_ID_MAX_BYTES ||
+		(metadata->id_present && metadata->id_length == 0)) {
+		return 0;
+	}
+	return 1;
+}
+
+int klsmpte2064_encapsulation_set_metadata(void *hdl,
+	const struct klsmpte2064_encapsulation_metadata *metadata)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx || !metadata_is_valid(metadata)) {
+		return -EINVAL;
+	}
+
+	ctx->encapsulation_metadata = *metadata;
+	ctx->encapsulation_metadata.id_present =
+		ctx->encapsulation_metadata.id_present ? 1 : 0;
+	if (!ctx->encapsulation_metadata.id_present) {
+		ctx->encapsulation_metadata.id_length = 0;
+		memset(ctx->encapsulation_metadata.id_data,
+			0,
+			sizeof(ctx->encapsulation_metadata.id_data));
+	}
+	return 0;
+}
+
+int klsmpte2064_encapsulation_get_metadata(void *hdl,
+	struct klsmpte2064_encapsulation_metadata *metadata)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx || !metadata) {
+		return -EINVAL;
+	}
+
+	*metadata = ctx->encapsulation_metadata;
+	return 0;
+}
+
 /* 6.1 - Table 5 - Container structure */
 int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength)
 {
@@ -17,7 +60,9 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 		return -ENODATA;
 	}
 
-	int id_present_flag = 1;
+	const struct klsmpte2064_encapsulation_metadata *metadata =
+		&ctx->encapsulation_metadata;
+	int id_present_flag = metadata->id_present;
 	int vfp_present_flag = 1;
 	int afp_present_flag = 0;
 
@@ -52,7 +97,7 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 
 	klbs_write_bits(ctx->bs, 0, 8); /* Length: Come back and update this. */
 
-	klbs_write_bits(ctx->bs, 7, 4); /* Picture_Rate - hardcoded to 59.94 */
+	klbs_write_bits(ctx->bs, metadata->picture_rate, 4); /* Picture_Rate */
 	klbs_write_bits(ctx->bs, reserved, 1); /* Reserved */
 	klbs_write_bits(ctx->bs, id_present_flag, 1); /* ID Present Flag */
 	klbs_write_bits(ctx->bs, vfp_present_flag, 1); /* VFp Present Flag */
@@ -62,9 +107,10 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 		klbs_write_bits(ctx->bs, reserved, 5); /* Reserved */
 		klbs_write_bits(ctx->bs, 0, 3); /* SCType: 0 = ID Sub Container  */
 		klbs_write_bits(ctx->bs, reserved, 3); /* Reserved */
-		klbs_write_bits(ctx->bs, 2, 5); /* Length of ID Data */
-		klbs_write_bits(ctx->bs, 'K', 8); /* Arbitrary data */
-		klbs_write_bits(ctx->bs, 'L', 8); /* Arbitrary data */
+		klbs_write_bits(ctx->bs, metadata->id_length, 5); /* Length of ID Data */
+		for (uint8_t i = 0; i < metadata->id_length; i++) {
+			klbs_write_bits(ctx->bs, metadata->id_data[i], 8);
+		}
 	}
 
 	if (vfp_present_flag) {

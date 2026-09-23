@@ -20,16 +20,21 @@ At startup, callers can verify the linked library version and feature set:
 uint32_t major = 0;
 uint32_t minor = 0;
 uint32_t patch = 0;
-uint32_t caps = klsmpte2064_capabilities();
 
 klsmpte2064_version(&major, &minor, &patch);
 
-if ((caps & KLSMPTE2064_CAP_DIRECT_WSS_LUMA) == 0 ||
-    (caps & KLSMPTE2064_CAP_FORMAT_PROBING) == 0 ||
-    (caps & KLSMPTE2064_CAP_STATUS_API) == 0 ||
-    (caps & KLSMPTE2064_CAP_RAW_FINGERPRINT_API) == 0) {
+if (!klsmpte2064_capabilities_satisfy(
+        KLSMPTE2064_IRIS_DIRECT_WSS_REQUIRED_CAPABILITIES)) {
     /* Disable direct WSS integration or fail initialization. */
 }
+```
+
+Build systems can check the package version and inspect the Iris integration
+capability mask through `pkg-config`:
+
+```sh
+pkg-config --atleast-version=1.0 libklsmpte2064
+pkg-config --variable=iris_direct_wss_required_capabilities libklsmpte2064
 ```
 
 Use format probing before allocating a context:
@@ -140,6 +145,9 @@ arrays are copied once for the source format, the kernel reads the luma texture
 at those coordinates, writes the 960 averaged 8-bit values into `samples`, and
 the CPU passes that compact block to libklsmpte2064.
 
+Use `docs/GPU-SAMPLER-TEST-VECTORS.md` to validate a GPU sampler against a
+deterministic 1920x1080 luma surface before connecting it to decoded frames.
+
 ## Hot Path Allocation Contract
 
 After successful context allocation, these calls perform no dynamic allocation:
@@ -150,6 +158,8 @@ After successful context allocation, these calls perform no dynamic allocation:
 - `klsmpte2064_video_push_wss_luma`
 - `klsmpte2064_context_status`
 - `klsmpte2064_fingerprint_get`
+- `klsmpte2064_encapsulation_set_metadata`
+- `klsmpte2064_encapsulation_get_metadata`
 - `klsmpte2064_encapsulation_pack`
 - `klsmpte2064_video_reset`
 - `klsmpte2064_audio_reset`
@@ -170,6 +180,34 @@ if (klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &used) == 0) {
     /* section[0..used) contains the SMPTE 2064 fingerprint container. */
 }
 ```
+
+## Encapsulation Metadata
+
+By default, packed sections preserve the original library behavior:
+
+- Picture rate: `KLSMPTE2064_PICTURE_RATE_5994`
+- ID sub-container: present
+- ID payload: `KL`
+
+Iris should configure this per source before packing so the section metadata
+matches the actual source:
+
+```c
+struct klsmpte2064_encapsulation_metadata metadata = {0};
+
+metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_60;
+metadata.id_present = 1;
+metadata.id_length = 4;
+metadata.id_data[0] = 'I';
+metadata.id_data[1] = 'R';
+metadata.id_data[2] = 'I';
+metadata.id_data[3] = 'S';
+
+klsmpte2064_encapsulation_set_metadata(hdl, &metadata);
+```
+
+Set `id_present` to zero to omit the ID sub-container. Metadata set/get calls
+perform no dynamic allocation.
 
 ## Status and Raw Fingerprints
 

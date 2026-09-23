@@ -104,6 +104,7 @@ struct ctx_s
 	uint32_t timebase_den;
 
     /* Encapsulation */
+    struct klsmpte2064_encapsulation_metadata encapsulation_metadata;
     struct klbs_context_s *bs;
     uint8_t sequence_counter;
 };

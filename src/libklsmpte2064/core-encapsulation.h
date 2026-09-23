@@ -18,6 +18,62 @@
 extern "C" {
 #endif
 
+/** Maximum ID payload bytes supported by the encapsulation ID sub-container. */
+#define KLSMPTE2064_ENCAPSULATION_ID_MAX_BYTES 31
+
+/** SMPTE ST 2064/S253 picture-rate codes used in packed fingerprint sections. */
+enum klsmpte2064_picture_rate_e
+{
+	KLSMPTE2064_PICTURE_RATE_UNKNOWN = 0x0,
+	KLSMPTE2064_PICTURE_RATE_23976 = 0x1,
+	KLSMPTE2064_PICTURE_RATE_24 = 0x2,
+	KLSMPTE2064_PICTURE_RATE_25 = 0x3,
+	KLSMPTE2064_PICTURE_RATE_2997 = 0x4,
+	KLSMPTE2064_PICTURE_RATE_30 = 0x5,
+	KLSMPTE2064_PICTURE_RATE_50 = 0x6,
+	KLSMPTE2064_PICTURE_RATE_5994 = 0x7,
+	KLSMPTE2064_PICTURE_RATE_60 = 0x8,
+};
+
+/**
+ * @brief Metadata written into encapsulated fingerprint sections.
+ *
+ * Defaults preserve the historical library behavior: picture_rate is
+ * KLSMPTE2064_PICTURE_RATE_5994, id_present is 1, and id_data is "KL".
+ */
+struct klsmpte2064_encapsulation_metadata {
+	uint8_t picture_rate; /**< enum klsmpte2064_picture_rate_e value, 0..8. */
+	uint8_t id_present; /**< Nonzero to include an ID sub-container. */
+	uint8_t id_length; /**< Number of valid bytes in id_data, 0..31. */
+	uint8_t id_data[KLSMPTE2064_ENCAPSULATION_ID_MAX_BYTES]; /**< ID payload bytes. */
+};
+
+/**
+ * @brief Configure metadata for future encapsulation pack calls.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[in] metadata Metadata to copy into the context.
+ * @return 0 on success.
+ * @return -EINVAL on invalid arguments.
+ *
+ * This function performs no dynamic allocation.
+ */
+KLSMPTE2064_API int klsmpte2064_encapsulation_set_metadata(void *hdl,
+	const struct klsmpte2064_encapsulation_metadata *metadata);
+
+/**
+ * @brief Query the current encapsulation metadata configuration.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[out] metadata Destination for current metadata.
+ * @return 0 on success.
+ * @return -EINVAL on invalid arguments.
+ *
+ * This function performs no dynamic allocation.
+ */
+KLSMPTE2064_API int klsmpte2064_encapsulation_get_metadata(void *hdl,
+	struct klsmpte2064_encapsulation_metadata *metadata);
+
 /**
  * @brief	    Create a 'container' section describing all of the audio and video fingerprints.
  *              This is then typically embeded into a ISO13818-1 PES or other means of distribution.

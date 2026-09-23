@@ -2,6 +2,8 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
+api_version=@VERSION@
+iris_direct_wss_required_capabilities=0xff
 
 Name: libklsmpte2064
 Description: Kernel Labs Library implementing SMPTE2064
