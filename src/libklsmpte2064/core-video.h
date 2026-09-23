@@ -46,6 +46,39 @@ struct klsmpte2064_video_wss_geometry {
 };
 
 /**
+ * @brief Test whether a video format is supported by the frame-push API.
+ *
+ * @param[in] colorspace Source video colorspace.
+ * @param[in] progressive Boolean. Currently only progressive video is supported.
+ * @param[in] width Video width in pixels.
+ * @param[in] height Video height in pixels.
+ * @param[in] bitdepth Source bit depth.
+ * @return 1 when supported, 0 when unsupported.
+ */
+int klsmpte2064_video_format_supported(
+	enum klsmpte2064_colorspace_e colorspace,
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height,
+	uint32_t bitdepth);
+
+/**
+ * @brief Test whether dimensions can use direct WSS luma input.
+ *
+ * This probes the geometry tables needed by klsmpte2064_context_alloc_wss_luma()
+ * and klsmpte2064_video_get_wss_geometry().
+ *
+ * @param[in] progressive Boolean. Currently only progressive video is supported.
+ * @param[in] width Video width in pixels.
+ * @param[in] height Video height in pixels.
+ * @return 1 when supported, 0 when unsupported.
+ */
+int klsmpte2064_video_wss_luma_format_supported(
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height);
+
+/**
  * @brief	    Push a video frame into the solution for processing.
  *              During context creation the width, height, depth etc was declared,
  *              pay attension and don't violate that.
@@ -54,6 +87,8 @@ struct klsmpte2064_video_wss_geometry {
  *            frame buffer for COLORSPACE_V210.
  * @return      0 - Success
  * @return      < 0 - Error
+ *
+ * Threading: calls on the same context must be serialized by the caller.
  */
 int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
 
@@ -70,6 +105,8 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
  * @param[out] geometry Destination for the sampling geometry.
  * @return 0 on success.
  * @return -EINVAL when hdl or geometry is NULL.
+ *
+ * Threading: calls on the same context must be serialized by the caller.
  */
 int klsmpte2064_video_get_wss_geometry(void *hdl,
 	struct klsmpte2064_video_wss_geometry *geometry);
@@ -143,6 +180,8 @@ int klsmpte2064_video_extract_wss_luma_v210(
  * @param[in] samples Prefiltered 8-bit luma samples arranged as [16][60].
  * @return 0 on success.
  * @return -EINVAL when hdl or samples is NULL.
+ *
+ * Threading: calls on the same context must be serialized by the caller.
  */
 int klsmpte2064_video_push_wss_luma(void *hdl,
 	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]);
@@ -157,6 +196,8 @@ int klsmpte2064_video_push_wss_luma(void *hdl,
  * @param[in] hdl A previously allocated context handle.
  * @return 0 on success.
  * @return -EINVAL when hdl is NULL.
+ *
+ * Threading: calls on the same context must be serialized by the caller.
  */
 int klsmpte2064_video_reset(void *hdl);
 

@@ -397,6 +397,71 @@ static int test_context_api(void)
 	return 0;
 }
 
+static int test_version_capabilities_and_format_probing(void)
+{
+	uint32_t major = 0;
+	uint32_t minor = 0;
+	uint32_t patch = 0;
+	uint32_t caps = 0;
+
+	EXPECT_TRUE(klsmpte2064_version_string() != NULL);
+	klsmpte2064_version(&major, &minor, &patch);
+	EXPECT_EQ_INT(KLSMPTE2064_VERSION_MAJOR, (int)major);
+	EXPECT_EQ_INT(KLSMPTE2064_VERSION_MINOR, (int)minor);
+	EXPECT_EQ_INT(KLSMPTE2064_VERSION_PATCH, (int)patch);
+	klsmpte2064_version(NULL, NULL, NULL);
+
+	caps = klsmpte2064_capabilities();
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_DIRECT_WSS_LUMA) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_WSS_EXTRACT_V210) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_RESET_APIS) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_FORMAT_PROBING) != 0);
+
+	EXPECT_EQ_INT(1,
+		klsmpte2064_video_format_supported(COLORSPACE_YUV420P,
+			1,
+			1280,
+			720,
+			8));
+	EXPECT_EQ_INT(1,
+		klsmpte2064_video_format_supported(COLORSPACE_V210,
+			1,
+			1920,
+			1080,
+			10));
+	EXPECT_EQ_INT(1,
+		klsmpte2064_video_wss_luma_format_supported(1, 3840, 2160));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_format_supported(COLORSPACE_YUV420P,
+			1,
+			1280,
+			720,
+			10));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_format_supported(COLORSPACE_V210,
+			1,
+			1920,
+			1080,
+			8));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_format_supported(COLORSPACE_UNDEFINED,
+			1,
+			1280,
+			720,
+			8));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_format_supported(COLORSPACE_YUV420P,
+			0,
+			1280,
+			720,
+			8));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_wss_luma_format_supported(1, 640, 360));
+
+	return 0;
+}
+
 static int test_yuv420p_golden_video_sections(void)
 {
 	void *hdl = NULL;
@@ -1129,6 +1194,8 @@ int main(void)
 {
 	const struct test_case tests[] = {
 		{ "context API validation", test_context_api },
+		{ "version capabilities and format probing",
+			test_version_capabilities_and_format_probing },
 		{ "YUV420P golden video sections", test_yuv420p_golden_video_sections },
 		{ "YUV420P padded stride golden video section",
 			test_yuv420p_padded_stride_golden_video_section },

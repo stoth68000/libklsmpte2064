@@ -99,6 +99,35 @@ const struct tbl2_s *lookupTable2(int progressive, int width, int height)
 	return NULL; /* Failed */
 }
 
+int klsmpte2064_video_format_supported(
+	enum klsmpte2064_colorspace_e colorspace,
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height,
+	uint32_t bitdepth)
+{
+	if (!width || !height || progressive != 1 ||
+		!colorspace || colorspace >= COLORSPACE_MAX ||
+		(colorspace == COLORSPACE_YUV420P && bitdepth != 8) ||
+		(colorspace == COLORSPACE_V210 && bitdepth != 10)) {
+		return 0;
+	}
+	return lookupTable1(progressive, width, height) &&
+		lookupTable2(progressive, width, height);
+}
+
+int klsmpte2064_video_wss_luma_format_supported(
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height)
+{
+	if (!width || !height || progressive != 1) {
+		return 0;
+	}
+	return lookupTable1(progressive, width, height) &&
+		lookupTable2(progressive, width, height);
+}
+
 int _video_push_yuv420p(struct ctx_s *ctx, const uint8_t *lumaplane, int src_stride)
 {
 	/* Step 1: pre-filter */

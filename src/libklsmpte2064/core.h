@@ -70,6 +70,16 @@
 extern "C" {
 #endif
 
+#define KLSMPTE2064_VERSION_MAJOR 1 /**< Major version of the public API. */
+#define KLSMPTE2064_VERSION_MINOR 0 /**< Minor version of the public API. */
+#define KLSMPTE2064_VERSION_PATCH 0 /**< Patch version of the public API. */
+
+#define KLSMPTE2064_CAP_DIRECT_WSS_LUMA (1u << 0) /**< Direct 16x60 WSS luma input is available. */
+#define KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P (1u << 1) /**< YUV420P CPU WSS extractor is available. */
+#define KLSMPTE2064_CAP_WSS_EXTRACT_V210 (1u << 2) /**< V210 CPU WSS extractor is available. */
+#define KLSMPTE2064_CAP_RESET_APIS (1u << 3) /**< Context, audio, and video reset APIs are available. */
+#define KLSMPTE2064_CAP_FORMAT_PROBING (1u << 4) /**< Format support probing APIs are available. */
+
 enum klsmpte2064_colorspace_e
 {
 	COLORSPACE_UNDEFINED = 0,
@@ -77,6 +87,34 @@ enum klsmpte2064_colorspace_e
 	COLORSPACE_V210,          /**< Most commonly used with Decklink SDI cards. */
 	COLORSPACE_MAX,
 };
+
+/**
+ * @brief Return the library version string.
+ *
+ * @return Static semantic version string for the linked library.
+ */
+const char *klsmpte2064_version_string(void);
+
+/**
+ * @brief Return the library version components.
+ *
+ * Any output pointer may be NULL.
+ *
+ * @param[out] major Receives the major version.
+ * @param[out] minor Receives the minor version.
+ * @param[out] patch Receives the patch version.
+ */
+void klsmpte2064_version(uint32_t *major, uint32_t *minor, uint32_t *patch);
+
+/**
+ * @brief Return supported integration capability flags.
+ *
+ * The returned mask uses KLSMPTE2064_CAP_* values and lets callers verify at
+ * runtime that the linked library supports APIs needed by an integration.
+ *
+ * @return Bitmask of KLSMPTE2064_CAP_* flags.
+ */
+uint32_t klsmpte2064_capabilities(void);
 
 /**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.
@@ -92,6 +130,10 @@ enum klsmpte2064_colorspace_e
  * @param[in]	uint32_t bitdepth - either 8 or 10 only. COLORSPACE_YUV420P is 8, V210 is 10.
  * @return      0 - Success
  * @return      < 0 - Error
+ *
+ * Threading: a context is not internally synchronized. Calls that operate on
+ * the same context must be serialized by the caller. Separate contexts may be
+ * used concurrently from different threads.
  */
 int klsmpte2064_context_alloc(void **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
@@ -121,6 +163,10 @@ int klsmpte2064_context_alloc(void **hdl,
  * @param[in] height Video height in pixels.
  * @return 0 on success.
  * @return < 0 on error.
+ *
+ * Threading: a context is not internally synchronized. Calls that operate on
+ * the same context must be serialized by the caller. Separate contexts may be
+ * used concurrently from different threads.
  */
 int klsmpte2064_context_alloc_wss_luma(void **hdl,
 	uint32_t progressive,

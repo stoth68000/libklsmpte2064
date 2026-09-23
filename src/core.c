@@ -6,6 +6,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+const char *klsmpte2064_version_string(void)
+{
+	return VERSION;
+}
+
+void klsmpte2064_version(uint32_t *major, uint32_t *minor, uint32_t *patch)
+{
+	if (major) {
+		*major = KLSMPTE2064_VERSION_MAJOR;
+	}
+	if (minor) {
+		*minor = KLSMPTE2064_VERSION_MINOR;
+	}
+	if (patch) {
+		*patch = KLSMPTE2064_VERSION_PATCH;
+	}
+}
+
+uint32_t klsmpte2064_capabilities(void)
+{
+	return KLSMPTE2064_CAP_DIRECT_WSS_LUMA |
+		KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P |
+		KLSMPTE2064_CAP_WSS_EXTRACT_V210 |
+		KLSMPTE2064_CAP_RESET_APIS |
+		KLSMPTE2064_CAP_FORMAT_PROBING;
+}
+
 static int context_alloc_common(void **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
