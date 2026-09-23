@@ -201,6 +201,7 @@ int klsmpte2064_context_set_verbose(void *hdl, int level);
  * This clears video motion history, audio fingerprint data, cached audio
  * timebase selection, and encapsulation sequence state without reallocating the
  * context. Use this for source replacement or a major stream discontinuity.
+ * This function performs no dynamic allocation.
  *
  * @param[in] hdl A previously allocated context handle.
  * @return 0 on success.

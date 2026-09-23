@@ -25,6 +25,9 @@ extern "C" {
  * @param[out] usedLength Number of output bytes used.
  * @return      0 - Success
  * @return      < 0 - Error
+ *
+ * This function writes into caller-supplied storage and performs no dynamic
+ * allocation.
  */
 int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength);
 

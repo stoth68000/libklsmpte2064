@@ -53,6 +53,7 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
  * Use this when an audio stream has a discontinuity, source switch, seek, or
  * reconnect and the next audio fingerprint should not reuse pre-discontinuity
  * state for the selected audio type.
+ * This function performs no dynamic allocation.
  *
  * @param[in] hdl A previously allocated context handle.
  * @param[in] type Audio fingerprint type to reset.

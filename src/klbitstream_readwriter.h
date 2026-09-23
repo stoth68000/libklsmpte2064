@@ -16,6 +16,9 @@
 #ifndef KLBITSTREAM_READWRITER_H
 #define KLBITSTREAM_READWRITER_H
 
+void *klsmpte2064_calloc(size_t count, size_t size);
+void klsmpte2064_free_internal(void *ptr);
+
 #define KLBITSTREAM_DEBUG 1
 #define KLBITSTREAM_ASSERT_ON_OVERRUN 0
 #define KLBITSTREAM_RETURN_ON_OVERRUN 0
@@ -83,7 +86,8 @@ struct klbs_context_s
  */
 static inline struct klbs_context_s * klbs_alloc()
 {
-	return (struct klbs_context_s *)calloc(1, sizeof(struct klbs_context_s));
+	return (struct klbs_context_s *)klsmpte2064_calloc(1,
+		sizeof(struct klbs_context_s));
 }
 
 /**
@@ -113,7 +117,7 @@ static inline int klbs_save(struct klbs_context_s *ctx, const char *fn)
  */
 static inline void klbs_free(struct klbs_context_s *ctx)
 {
-	free(ctx);
+	klsmpte2064_free_internal(ctx);
 }
 
 /**
@@ -495,16 +499,17 @@ static inline void klbs_peek_print_binary(struct klbs_context_s *ctx, uint32_t b
  */
 static inline struct klbs_context_s * klbs_alloc_init_with_storage(uint32_t storageSizeBytes, int writeMode)
 {
-	struct klbs_context_s *ctx = calloc(1, sizeof(struct klbs_context_s));
+	struct klbs_context_s *ctx = klsmpte2064_calloc(1,
+		sizeof(struct klbs_context_s));
 	if (!ctx)
 		return NULL;
 
 	klbs_init(ctx);
 	ctx->didAllocateStorage = 1;
 
-	uint8_t *buf = calloc(1, storageSizeBytes);
+	uint8_t *buf = klsmpte2064_calloc(1, storageSizeBytes);
 	if (!buf) {
-		free(ctx);
+		klsmpte2064_free_internal(ctx);
 		return NULL;
 	}
 

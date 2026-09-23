@@ -6,6 +6,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+static uint64_t g_allocation_count;
+
+void *klsmpte2064_malloc(size_t size)
+{
+	void *ptr = malloc(size);
+
+	if (ptr) {
+		g_allocation_count++;
+	}
+	return ptr;
+}
+
+void *klsmpte2064_calloc(size_t count, size_t size)
+{
+	void *ptr = calloc(count, size);
+
+	if (ptr) {
+		g_allocation_count++;
+	}
+	return ptr;
+}
+
+void klsmpte2064_free_internal(void *ptr)
+{
+	free(ptr);
+}
+
+uint64_t klsmpte2064_test_allocation_count(void)
+{
+	return g_allocation_count;
+}
+
 const char *klsmpte2064_version_string(void)
 {
 	return VERSION;
@@ -66,7 +98,7 @@ static int context_alloc_common(void **hdl,
 		}
 	}
 
-	ctx = calloc(1, sizeof(*ctx));
+	ctx = klsmpte2064_calloc(1, sizeof(*ctx));
 	if (!ctx) {
 		return -ENOMEM;
 	}
@@ -83,12 +115,12 @@ static int context_alloc_common(void **hdl,
 
 	if (!direct_wss_luma) {
 		ctx->ystride = width;
-		ctx->y = malloc(width * height);
+		ctx->y = klsmpte2064_malloc(width * height);
 		if (!ctx->y) {
 			ret = -ENOMEM;
 			goto fail;
 		}
-		ctx->y_csc = malloc(width * height);
+		ctx->y_csc = klsmpte2064_malloc(width * height);
 		if (!ctx->y_csc) {
 			ret = -ENOMEM;
 			goto fail;
@@ -181,9 +213,9 @@ void klsmpte2064_context_free(void *hdl)
 
 	klsmpte2064_audio_free(ctx);
 	klbs_free(ctx->bs);
-	free(ctx->y_csc);
-	free(ctx->y);
-	free(ctx);
+	klsmpte2064_free_internal(ctx->y_csc);
+	klsmpte2064_free_internal(ctx->y);
+	klsmpte2064_free_internal(ctx);
 }
 
 int klsmpte2064_context_set_verbose(void *hdl, int level)

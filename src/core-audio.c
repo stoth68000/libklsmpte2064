@@ -374,23 +374,23 @@ static int _audio_downmix(struct ctx_s *ctx, enum klsmpte2064_audio_type_e type,
 
 int klsmpte2064_audio_alloc(struct ctx_s *ctx)
 {
-	ctx->bufA = malloc(ctx->audioMaxSampleCount * sizeof(float));
+	ctx->bufA = klsmpte2064_malloc(ctx->audioMaxSampleCount * sizeof(float));
 	if (!ctx->bufA) {
 		return -ENOMEM;
 	}
-	ctx->Es = malloc(ctx->audioMaxSampleCount * sizeof(float));
+	ctx->Es = klsmpte2064_malloc(ctx->audioMaxSampleCount * sizeof(float));
 	if (!ctx->Es) {
 		return -ENOMEM;
 	}
-	ctx->Ms = malloc(ctx->audioMaxSampleCount * sizeof(float));
+	ctx->Ms = klsmpte2064_malloc(ctx->audioMaxSampleCount * sizeof(float));
 	if (!ctx->Ms) {
 		return -ENOMEM;
 	}
-	ctx->comp_bit = malloc(ctx->audioMaxSampleCount * sizeof(uint8_t));
+	ctx->comp_bit = klsmpte2064_malloc(ctx->audioMaxSampleCount * sizeof(uint8_t));
 	if (!ctx->comp_bit) {
 		return -ENOMEM;
 	}
-	ctx->result = malloc(ctx->audioMaxSampleCount * sizeof(uint8_t));
+	ctx->result = klsmpte2064_malloc(ctx->audioMaxSampleCount * sizeof(uint8_t));
 	if (!ctx->result) {
 		return -ENOMEM;
 	}
@@ -401,23 +401,23 @@ int klsmpte2064_audio_alloc(struct ctx_s *ctx)
 void klsmpte2064_audio_free(struct ctx_s *ctx)
 {
 	if (ctx->bufA) {
-		free(ctx->bufA);
+		klsmpte2064_free_internal(ctx->bufA);
 		ctx->bufA = NULL;
 	}
 	if (ctx->Es) {
-		free(ctx->Es);
+		klsmpte2064_free_internal(ctx->Es);
 		ctx->Es = NULL;
 	}
 	if (ctx->Ms) {
-		free(ctx->Ms);
+		klsmpte2064_free_internal(ctx->Ms);
 		ctx->Ms = NULL;
 	}
 	if (ctx->comp_bit) {
-		free(ctx->comp_bit);
+		klsmpte2064_free_internal(ctx->comp_bit);
 		ctx->comp_bit = NULL;
 	}
 	if (ctx->result) {
-		free(ctx->result);
+		klsmpte2064_free_internal(ctx->result);
 		ctx->result = NULL;
 	}
 }

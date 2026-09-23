@@ -67,6 +67,24 @@ if (klsmpte2064_video_get_wss_geometry(hdl, &geometry) < 0) {
 klsmpte2064_video_push_wss_luma(hdl, samples);
 ```
 
+## Hot Path Allocation Contract
+
+After successful context allocation, these calls perform no dynamic allocation:
+
+- `klsmpte2064_video_get_wss_geometry`
+- `klsmpte2064_video_extract_wss_luma_yuv420p`
+- `klsmpte2064_video_extract_wss_luma_v210`
+- `klsmpte2064_video_push_wss_luma`
+- `klsmpte2064_encapsulation_pack`
+- `klsmpte2064_video_reset`
+- `klsmpte2064_audio_reset`
+- `klsmpte2064_context_reset`
+
+This contract is covered by the unit tests so regressions are caught by
+`make check`. `klsmpte2064_audio_push()` is intentionally not part of the
+allocation-free guarantee because it may resize internal work buffers if
+`sampleCount` exceeds the context's current audio capacity.
+
 After at least three video frames have been pushed, fingerprints can be packed:
 
 ```c

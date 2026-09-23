@@ -6,6 +6,8 @@
 
 #include <libklsmpte2064/klsmpte2064.h>
 
+extern uint64_t klsmpte2064_test_allocation_count(void);
+
 #define EXPECT_TRUE(expr)                                                     \
 	do {                                                                      \
 		if (!(expr)) {                                                        \
@@ -1183,6 +1185,66 @@ static int test_csc_api(void)
 	return 0;
 }
 
+static int test_hot_path_no_allocations(void)
+{
+	void *hdl = NULL;
+	struct klsmpte2064_video_wss_geometry geometry = {0};
+	uint8_t samples[KLSMPTE2064_WSS_ROWS]
+		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+	const uint32_t width = 1920;
+	const uint32_t height = 1080;
+	const uint32_t yuv_stride = width + 32;
+	const uint32_t v210_stride = width * 8 / 3;
+	const size_t yuv_size = (size_t)yuv_stride * height;
+	const size_t v210_size = (size_t)v210_stride * height;
+	uint8_t *yuv_frame = calloc(1, yuv_size);
+	uint8_t *v210_frame = calloc(1, v210_size);
+	uint64_t before = 0;
+	uint64_t after = 0;
+
+	EXPECT_TRUE(yuv_frame != NULL);
+	EXPECT_TRUE(v210_frame != NULL);
+	EXPECT_EQ_INT(0,
+		klsmpte2064_context_alloc_wss_luma(&hdl, 1, width, height));
+	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_geometry(hdl, &geometry));
+
+	fill_luma_pattern(yuv_frame, width, height, yuv_stride, 7);
+	fill_v210_pattern(v210_frame, width, height, v210_stride, 9);
+	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
+
+	before = klsmpte2064_test_allocation_count();
+
+	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_geometry(hdl, &geometry));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_extract_wss_luma_yuv420p(&geometry,
+			yuv_frame,
+			width,
+			yuv_stride,
+			samples));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_extract_wss_luma_v210(&geometry,
+			v210_frame,
+			width,
+			v210_stride,
+			samples));
+	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0, klsmpte2064_video_reset(hdl));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_audio_reset(hdl, AUDIOTYPE_STEREO_S16P));
+	EXPECT_EQ_INT(0, klsmpte2064_context_reset(hdl));
+
+	after = klsmpte2064_test_allocation_count();
+	EXPECT_TRUE(before == after);
+
+	klsmpte2064_context_free(hdl);
+	free(yuv_frame);
+	free(v210_frame);
+	return 0;
+}
+
 typedef int (*test_fn)(void);
 
 struct test_case {
@@ -1215,6 +1277,7 @@ int main(void)
 		{ "audio API current use cases and edges",
 			test_audio_api_current_use_cases_and_edges },
 		{ "V210 colorspace conversion helpers", test_csc_api },
+		{ "hot path APIs do not allocate", test_hot_path_no_allocations },
 	};
 	int passed = 0;
 	int failed = 0;

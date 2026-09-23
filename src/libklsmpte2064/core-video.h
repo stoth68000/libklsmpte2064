@@ -100,6 +100,7 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
  * width, height, progressive flag, and format table selection. Callers can use
  * the geometry to extract equivalent prefiltered 8-bit luma samples from GPU
  * surfaces, then submit them through klsmpte2064_video_push_wss_luma().
+ * This function performs no dynamic allocation.
  *
  * @param[in] hdl A previously allocated context handle.
  * @param[out] geometry Destination for the sampling geometry.
@@ -126,6 +127,8 @@ int klsmpte2064_video_get_wss_geometry(void *hdl,
  * @param[out] samples Receives prefiltered 8-bit luma samples as [16][60].
  * @return 0 on success.
  * @return -EINVAL on invalid arguments.
+ *
+ * This function performs no dynamic allocation.
  */
 int klsmpte2064_video_extract_wss_luma_yuv420p(
 	const struct klsmpte2064_video_wss_geometry *geometry,
@@ -148,6 +151,8 @@ int klsmpte2064_video_extract_wss_luma_yuv420p(
  * @param[out] samples Receives prefiltered 8-bit luma samples as [16][60].
  * @return 0 on success.
  * @return -EINVAL on invalid arguments.
+ *
+ * This function performs no dynamic allocation.
  */
 int klsmpte2064_video_extract_wss_luma_v210(
 	const struct klsmpte2064_video_wss_geometry *geometry,
@@ -175,6 +180,7 @@ int klsmpte2064_video_extract_wss_luma_v210(
  * The samples are consumed immediately. The caller may reuse or release the
  * buffer after the function returns. The function updates the same motion
  * history and video fingerprint state as klsmpte2064_video_push().
+ * This function performs no dynamic allocation.
  *
  * @param[in] hdl A previously allocated context handle.
  * @param[in] samples Prefiltered 8-bit luma samples arranged as [16][60].
@@ -196,6 +202,8 @@ int klsmpte2064_video_push_wss_luma(void *hdl,
  * @param[in] hdl A previously allocated context handle.
  * @return 0 on success.
  * @return -EINVAL when hdl is NULL.
+ *
+ * This function performs no dynamic allocation.
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
