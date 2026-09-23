@@ -64,12 +64,9 @@ struct ctx_s
 	const struct tbl3_s *t3;
 
     /* 5.2.2 Windowing Sub-Sampling */
-#define WSS_ROWS 16
-#define WSS_SAMPLES_PER_ROW 60
-#define WSS_SAMPLES_PER_FRAME (WSS_ROWS * WSS_SAMPLES_PER_ROW)
-    uint8_t wss_f4[WSS_ROWS][WSS_SAMPLES_PER_ROW]; /* 5.2.3.1 - figure 5 - frame or field we compare against */
-    uint8_t wss_f3[WSS_ROWS][WSS_SAMPLES_PER_ROW]; /* 5.2.3.1 - figure 5 - basic unusued */
-    uint8_t wss_f2[WSS_ROWS][WSS_SAMPLES_PER_ROW]; /* 5.2.3.1 - figure 5 - always the current frame */
+    uint8_t wss_f4[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /* 5.2.3.1 - figure 5 - frame or field we compare against */
+    uint8_t wss_f3[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /* 5.2.3.1 - figure 5 - basic unusued */
+    uint8_t wss_f2[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /* 5.2.3.1 - figure 5 - always the current frame */
 
     int per_pixel_motion_threshold;
     uint8_t video_fingerprint_data_f4; /* 5.2.3.2 */
@@ -82,7 +79,7 @@ struct ctx_s
 	/* The window subsamples an image based on 16 lines.
 	 * Cache those line numebrs that are specific to resolution.
 	 */
-	int wss_lines[WSS_ROWS];
+	int wss_lines[KLSMPTE2064_WSS_ROWS];
 	int wss_line_count;
 
 	/* Audio */

@@ -74,7 +74,7 @@ int klsmpte2064_context_alloc(void **hdl,
 	 * used for large algorithm acceleration.
 	 */
 	int gridv = ctx->t2->vstart_f1;
-	for (int r = 0; r < WSS_ROWS; r++) {
+	for (int r = 0; r < KLSMPTE2064_WSS_ROWS; r++) {
 		ctx->wss_lines[r] = gridv;
 		gridv += ctx->t2->vstep;
 	}
@@ -82,7 +82,7 @@ int klsmpte2064_context_alloc(void **hdl,
 	 * and prefiltering them preserves the resulting fingerprints while avoiding
 	 * full-frame work on rows that are never sampled.
 	 */
-	ctx->wss_line_count = WSS_ROWS;
+	ctx->wss_line_count = KLSMPTE2064_WSS_ROWS;
 	ctx->bs = klbs_alloc();
 	if (!ctx->bs) {
 		ret = -ENOMEM;

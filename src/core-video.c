@@ -10,6 +10,7 @@
 static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stride);
 static int _video_window_subsampling_progressive(struct ctx_s *ctx);
 static int _video_window_compute_motion(struct ctx_s *ctx);
+static void _video_window_rotate(struct ctx_s *ctx);
 
 /* Table 1 - Video Format Prefilter */
 struct tbl1_s tbl1[] = {
@@ -149,6 +150,53 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	return -1;
 }
 
+int klsmpte2064_video_get_wss_geometry(void *hdl,
+	struct klsmpte2064_video_wss_geometry *geometry)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx || !geometry) {
+		return -EINVAL;
+	}
+
+	memset(geometry, 0, sizeof(*geometry));
+	geometry->row_count = KLSMPTE2064_WSS_ROWS;
+	geometry->samples_per_row = KLSMPTE2064_WSS_SAMPLES_PER_ROW;
+	geometry->prefilter_tap_count = ctx->t1->pfcount;
+	for (int i = 0; i < ctx->t1->pfcount; i++) {
+		geometry->prefilter_offsets[i] = ctx->t1->prefilter[i];
+	}
+
+	int gridv = ctx->t2->vstart_f1;
+	for (int r = 0; r < KLSMPTE2064_WSS_ROWS; r++) {
+		geometry->rows[r] = gridv;
+		gridv += ctx->t2->vstep;
+	}
+
+	int gridh = ctx->t2->hstart;
+	for (int c = 0; c < KLSMPTE2064_WSS_SAMPLES_PER_ROW; c++) {
+		geometry->columns[c] = gridh;
+		gridh += ctx->t2->hstep;
+	}
+
+	return 0;
+}
+
+int klsmpte2064_video_push_wss_luma(void *hdl,
+	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx || !samples) {
+		return -EINVAL;
+	}
+
+	_video_window_rotate(ctx);
+	memcpy(&ctx->wss_f4[0][0],
+		&samples[0][0],
+		sizeof(ctx->wss_f4));
+
+	return _video_window_compute_motion(ctx);
+}
+
 /* Copy the luma rows that feed the fingerprint into our context and apply the
  * per-format horizontal prefilter. Rows outside the 16-row sampling window never
  * influence the resulting fingerprint.
@@ -227,21 +275,17 @@ static int _video_window_subsampling_progressive(struct ctx_s *ctx)
 		return -1;
 	}
 
-	/* Current to prior, we'll need this later in motion detection.
-	 * We never really use f3 but its clear to read this way.
-	 */
-	memcpy(&ctx->wss_f2[0][0], &ctx->wss_f3[0][0], sizeof(ctx->wss_f3));
-	memcpy(&ctx->wss_f3[0][0], &ctx->wss_f4[0][0], sizeof(ctx->wss_f4));
+	_video_window_rotate(ctx);
 
 	/* Subsample the prefiltered luma into a windowed sub-sample area */
 	int gridv = ctx->t2->vstart_f1;
 
-	for (int r = 0; r < WSS_ROWS; r++) {
+	for (int r = 0; r < KLSMPTE2064_WSS_ROWS; r++) {
 		int gridh = ctx->t2->hstart;
 		uint8_t *srcline = (ctx->y + (gridv * ctx->ystride));
 		//printf(MODULE_PREFIX "gridv %4d: ", gridv);
 
-		for (int c = 0; c < WSS_SAMPLES_PER_ROW; c++) {
+		for (int c = 0; c < KLSMPTE2064_WSS_SAMPLES_PER_ROW; c++) {
 			//printf(" %4d", gridh);
 
 			ctx->wss_f4[r][c] = srcline[gridh];
@@ -256,6 +300,15 @@ static int _video_window_subsampling_progressive(struct ctx_s *ctx)
 	return 0;
 }
 
+static void _video_window_rotate(struct ctx_s *ctx)
+{
+	/* Current to prior, we'll need this later in motion detection.
+	 * We never really use f3 but its clear to read this way.
+	 */
+	memcpy(&ctx->wss_f2[0][0], &ctx->wss_f3[0][0], sizeof(ctx->wss_f3));
+	memcpy(&ctx->wss_f3[0][0], &ctx->wss_f4[0][0], sizeof(ctx->wss_f4));
+}
+
 /* Compute motion magnitude between two subsampled frames.
  * 5.2.3.2 Pixel Counting
  * "a pixel shall be considered changed if the difference between the current pixel
@@ -266,8 +319,8 @@ static int _video_window_compute_motion(struct ctx_s *ctx)
 {
 	int above_threshold = 0;
 
-	for (int r = 0; r < WSS_ROWS; r++) {
-		for (int c = 0; c < WSS_SAMPLES_PER_ROW; c++) {
+	for (int r = 0; r < KLSMPTE2064_WSS_ROWS; r++) {
+		for (int c = 0; c < KLSMPTE2064_WSS_SAMPLES_PER_ROW; c++) {
 			int diff = (int)ctx->wss_f4[r][c] - (int)ctx->wss_f2[r][c];
 			int adiff = abs(diff);
 			if (adiff > ctx->per_pixel_motion_threshold) {
@@ -288,11 +341,12 @@ static int _video_window_compute_motion(struct ctx_s *ctx)
 		printf(MODULE_PREFIX "frame %8" PRIu64 " - video fp 0x%02x, pixels are above threshold %3d/%3d\n",
 			ctx->fingerprints_calculated,
 			ctx->video_fingerprint_data_f4,
-			above_threshold, WSS_SAMPLES_PER_FRAME);
+			above_threshold, KLSMPTE2064_WSS_SAMPLES_PER_FRAME);
 	}
 
 	/* Compute the motion, save this, might be a useful side metric. */
-	ctx->motion = (double)above_threshold / (double)WSS_SAMPLES_PER_FRAME;
+	ctx->motion = (double)above_threshold /
+		(double)KLSMPTE2064_WSS_SAMPLES_PER_FRAME;
 
 	return 0;
 }

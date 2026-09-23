@@ -134,6 +134,30 @@ static int push_three_video_frames(void *hdl,
 	return 0;
 }
 
+static void fill_wss_samples(uint8_t samples[KLSMPTE2064_WSS_ROWS]
+	[KLSMPTE2064_WSS_SAMPLES_PER_ROW],
+	uint8_t value)
+{
+	for (int r = 0; r < KLSMPTE2064_WSS_ROWS; r++) {
+		for (int c = 0; c < KLSMPTE2064_WSS_SAMPLES_PER_ROW; c++) {
+			samples[r][c] = value;
+		}
+	}
+}
+
+static int push_three_wss_sample_frames(void *hdl)
+{
+	uint8_t samples[KLSMPTE2064_WSS_ROWS]
+		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
+
+	fill_wss_samples(samples, 0x00);
+	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	fill_wss_samples(samples, 0xff);
+	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	return 0;
+}
+
 static int pack_section(void *hdl,
 	uint8_t *section,
 	uint32_t section_size,
@@ -374,6 +398,70 @@ static int test_yuv420p_padded_stride_golden_video_section(void)
 
 	klsmpte2064_context_free(hdl);
 	free(frame);
+	return 0;
+}
+
+static int test_wss_luma_golden_video_sections(void)
+{
+	void *hdl = NULL;
+	uint8_t samples[KLSMPTE2064_WSS_ROWS]
+		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+
+	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_push_wss_luma(NULL, samples));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_push_wss_luma(hdl, NULL));
+	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION),
+			section,
+			used_length));
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION_SEQ2,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION_SEQ2),
+			section,
+			used_length));
+
+	klsmpte2064_context_free(hdl);
+	return 0;
+}
+
+static int test_wss_geometry_api(void)
+{
+	void *hdl = NULL;
+	struct klsmpte2064_video_wss_geometry geometry = {0};
+
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_get_wss_geometry(NULL, &geometry));
+
+	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_get_wss_geometry(hdl, NULL));
+	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_geometry(hdl, &geometry));
+
+	EXPECT_EQ_INT(KLSMPTE2064_WSS_ROWS, (int)geometry.row_count);
+	EXPECT_EQ_INT(KLSMPTE2064_WSS_SAMPLES_PER_ROW,
+		(int)geometry.samples_per_row);
+	EXPECT_EQ_INT(2, (int)geometry.prefilter_tap_count);
+	EXPECT_EQ_INT(-1, geometry.prefilter_offsets[0]);
+	EXPECT_EQ_INT(0, geometry.prefilter_offsets[1]);
+	EXPECT_EQ_INT(117, geometry.rows[0]);
+	EXPECT_EQ_INT(149, geometry.rows[1]);
+	EXPECT_EQ_INT(597, geometry.rows[KLSMPTE2064_WSS_ROWS - 1]);
+	EXPECT_EQ_INT(256, geometry.columns[0]);
+	EXPECT_EQ_INT(269, geometry.columns[1]);
+	EXPECT_EQ_INT(1023,
+		geometry.columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW - 1]);
+
+	klsmpte2064_context_free(hdl);
 	return 0;
 }
 
@@ -737,6 +825,9 @@ int main(void)
 		{ "YUV420P golden video sections", test_yuv420p_golden_video_sections },
 		{ "YUV420P padded stride golden video section",
 			test_yuv420p_padded_stride_golden_video_section },
+		{ "direct WSS luma golden video sections",
+			test_wss_luma_golden_video_sections },
+		{ "WSS geometry API", test_wss_geometry_api },
 		{ "YUV420P golden audio section", test_yuv420p_golden_audio_section },
 		{ "YUV420P video and encapsulation validation",
 			test_video_api_yuv420p_and_encapsulation_validation },
