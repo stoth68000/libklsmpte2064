@@ -44,6 +44,20 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
     uint32_t timebase_num, uint32_t timebase_den,
     const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
 
+/**
+ * @brief Reset one audio fingerprint slot.
+ *
+ * Use this when an audio stream has a discontinuity, source switch, seek, or
+ * reconnect and the next audio fingerprint should not reuse pre-discontinuity
+ * state for the selected audio type.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[in] type Audio fingerprint type to reset.
+ * @return 0 on success.
+ * @return -EINVAL on invalid handle or type.
+ */
+int klsmpte2064_audio_reset(void *hdl, enum klsmpte2064_audio_type_e type);
+
 #ifdef __cplusplus
 };
 #endif

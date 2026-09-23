@@ -274,6 +274,18 @@ static int _audio_downmix_stereo(struct ctx_s *ctx,	const int16_t *planes[], uin
 	return 0;
 }
 
+int klsmpte2064_audio_reset(void *hdl, enum klsmpte2064_audio_type_e type)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx || type <= AUDIOTYPE_UNDEFINED || type >= AUDIOTYPE_MAX) {
+		return -EINVAL;
+	}
+
+	klbs_init(&ctx->fp_bs[type]);
+	memset(ctx->fp_buffer[type], 0, sizeof(ctx->fp_buffer[type]));
+	return 0;
+}
+
 static int _audio_downmix_decklink_interleaved_stereo(struct ctx_s *ctx, const int16_t *planes[], uint32_t planeCount,
 	uint32_t sampleCount, float *buf)
 {

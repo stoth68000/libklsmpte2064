@@ -75,6 +75,51 @@ int klsmpte2064_video_get_wss_geometry(void *hdl,
 	struct klsmpte2064_video_wss_geometry *geometry);
 
 /**
+ * @brief Extract windowed luma samples from an 8-bit YUV420P luma plane.
+ *
+ * This is a CPU reference helper for callers that implement their own fast
+ * sampler, such as a GPU compute kernel. It applies the supplied geometry's
+ * horizontal prefilter taps and writes the exact 16 by 60 8-bit luma sample
+ * block accepted by klsmpte2064_video_push_wss_luma().
+ *
+ * @param[in] geometry Geometry returned by klsmpte2064_video_get_wss_geometry().
+ * @param[in] lumaplane Source Y plane.
+ * @param[in] width Source image width in pixels.
+ * @param[in] stride Source Y plane stride in bytes.
+ * @param[out] samples Receives prefiltered 8-bit luma samples as [16][60].
+ * @return 0 on success.
+ * @return -EINVAL on invalid arguments.
+ */
+int klsmpte2064_video_extract_wss_luma_yuv420p(
+	const struct klsmpte2064_video_wss_geometry *geometry,
+	const uint8_t *lumaplane,
+	uint32_t width,
+	uint32_t stride,
+	uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]);
+
+/**
+ * @brief Extract windowed luma samples from a packed V210 frame.
+ *
+ * This CPU reference helper mirrors the V210 luma unpacking and horizontal
+ * prefiltering used by klsmpte2064_video_push(). It is intended as a correctness
+ * oracle for more efficient integrations, not as the fastest possible path.
+ *
+ * @param[in] geometry Geometry returned by klsmpte2064_video_get_wss_geometry().
+ * @param[in] frame Source V210 frame.
+ * @param[in] width Source image width in pixels.
+ * @param[in] stride Source V210 frame stride in bytes.
+ * @param[out] samples Receives prefiltered 8-bit luma samples as [16][60].
+ * @return 0 on success.
+ * @return -EINVAL on invalid arguments.
+ */
+int klsmpte2064_video_extract_wss_luma_v210(
+	const struct klsmpte2064_video_wss_geometry *geometry,
+	const uint8_t *frame,
+	uint32_t width,
+	uint32_t stride,
+	uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]);
+
+/**
  * @brief	    Push prefiltered SMPTE 2064 windowed luma samples.
  *
  * This entry point is intended for callers that can extract the SMPTE 2064
@@ -101,6 +146,19 @@ int klsmpte2064_video_get_wss_geometry(void *hdl,
  */
 int klsmpte2064_video_push_wss_luma(void *hdl,
 	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]);
+
+/**
+ * @brief Reset video motion history and video fingerprint state.
+ *
+ * Use this when a video stream has a discontinuity, source switch, seek, or
+ * reconnect and the next frames should not be compared with pre-discontinuity
+ * samples. Audio fingerprints and encapsulation sequence state are unchanged.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @return 0 on success.
+ * @return -EINVAL when hdl is NULL.
+ */
+int klsmpte2064_video_reset(void *hdl);
 
 #ifdef __cplusplus
 };

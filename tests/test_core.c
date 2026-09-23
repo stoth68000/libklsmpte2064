@@ -156,6 +156,31 @@ static void fill_luma_pattern(uint8_t *frame,
 	}
 }
 
+static void fill_v210_pattern(uint8_t *frame,
+	uint32_t width,
+	uint32_t height,
+	uint32_t stride,
+	uint8_t seed)
+{
+	for (uint32_t y = 0; y < height; y++) {
+		uint8_t *line = frame + (y * stride);
+		memset(line, 0xee, stride);
+		for (uint32_t x = 0; x + 5 < width; x += 6) {
+			uint32_t *dst = (uint32_t *)(line + ((x / 6) * 16));
+			uint32_t y10[6] = {0};
+
+			for (uint32_t i = 0; i < 6; i++) {
+				y10[i] = (uint32_t)
+					(((x + i) * 3 + y * 5 + seed * 37) & 0xff) << 2;
+			}
+			dst[0] = pack_v210_word(512, y10[0], 512);
+			dst[1] = pack_v210_word(y10[1], 512, y10[2]);
+			dst[2] = pack_v210_word(512, y10[3], 512);
+			dst[3] = pack_v210_word(y10[4], 512, y10[5]);
+		}
+	}
+}
+
 static void fill_wss_samples(uint8_t samples[KLSMPTE2064_WSS_ROWS]
 	[KLSMPTE2064_WSS_SAMPLES_PER_ROW],
 	uint8_t value)
@@ -177,38 +202,6 @@ static int push_three_wss_sample_frames(void *hdl)
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
 	fill_wss_samples(samples, 0xff);
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
-	return 0;
-}
-
-static int extract_wss_samples_from_yuv(
-	const uint8_t *frame,
-	uint32_t width,
-	uint32_t stride,
-	const struct klsmpte2064_video_wss_geometry *geometry,
-	uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
-{
-	for (uint32_t r = 0; r < geometry->row_count; r++) {
-		const uint8_t *line = frame + ((uint32_t)geometry->rows[r] * stride);
-		for (uint32_t c = 0; c < geometry->samples_per_row; c++) {
-			if (geometry->prefilter_tap_count == 0) {
-				samples[r][c] = line[geometry->columns[c]];
-				continue;
-			}
-
-			int sum = 0;
-			int count = 0;
-			for (uint32_t tap = 0; tap < geometry->prefilter_tap_count; tap++) {
-				const int x = geometry->columns[c] +
-					geometry->prefilter_offsets[tap];
-				if (x >= 0 && x < (int)width) {
-					sum += line[x];
-					count++;
-				}
-			}
-			EXPECT_TRUE(count > 0);
-			samples[r][c] = (uint8_t)(sum / count);
-		}
-	}
 	return 0;
 }
 
@@ -533,7 +526,81 @@ static int test_wss_geometry_api(void)
 	EXPECT_EQ_INT(269, geometry.columns[1]);
 	EXPECT_EQ_INT(1023,
 		geometry.columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW - 1]);
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_extract_wss_luma_yuv420p(NULL,
+			(uint8_t *)&geometry,
+			1280,
+			1280,
+			(uint8_t (*)[KLSMPTE2064_WSS_SAMPLES_PER_ROW])
+				&geometry));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_extract_wss_luma_v210(NULL,
+			(uint8_t *)&geometry,
+			1920,
+			1920 * 8 / 3,
+			(uint8_t (*)[KLSMPTE2064_WSS_SAMPLES_PER_ROW])
+				&geometry));
 
+	klsmpte2064_context_free(hdl);
+	return 0;
+}
+
+static int test_reset_apis(void)
+{
+	void *hdl = NULL;
+	uint8_t frame[1280 * 720] = {0};
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_reset(NULL));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_reset(NULL, AUDIOTYPE_STEREO_S16P));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_context_reset(NULL));
+
+	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_reset(hdl, AUDIOTYPE_UNDEFINED));
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, sizeof(frame)));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0, klsmpte2064_video_reset(hdl));
+	EXPECT_EQ_INT(-ENODATA,
+		klsmpte2064_encapsulation_pack(hdl,
+			section,
+			sizeof(section),
+			&used_length));
+
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, sizeof(frame)));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION_SEQ2,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION_SEQ2),
+			section,
+			used_length));
+	klsmpte2064_context_free(hdl);
+
+	hdl = NULL;
+	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, sizeof(frame)));
+	EXPECT_EQ_INT(0, push_all_current_audio_types(hdl));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0, klsmpte2064_context_reset(hdl));
+	EXPECT_EQ_INT(-ENODATA,
+		klsmpte2064_encapsulation_pack(hdl,
+			section,
+			sizeof(section),
+			&used_length));
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, sizeof(frame)));
+	EXPECT_EQ_INT(0, push_all_current_audio_types(hdl));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_AUDIO_SECTION,
+			sizeof(GOLDEN_YUV_AUDIO_SECTION),
+			section,
+			used_length));
+
+	EXPECT_EQ_INT(0,
+		klsmpte2064_audio_reset(hdl, AUDIOTYPE_STEREO_S16P));
 	klsmpte2064_context_free(hdl);
 	return 0;
 }
@@ -588,10 +655,10 @@ static int test_wss_luma_matches_yuv420p_for_supported_dimensions(void)
 			fill_luma_pattern(frame, width, height, stride, seed);
 			EXPECT_EQ_INT(0, klsmpte2064_video_push(yuv_hdl, frame));
 			EXPECT_EQ_INT(0,
-				extract_wss_samples_from_yuv(frame,
+				klsmpte2064_video_extract_wss_luma_yuv420p(&geometry,
+					frame,
 					width,
 					stride,
-					&geometry,
 					samples));
 			EXPECT_EQ_INT(0,
 				klsmpte2064_video_push_wss_luma(wss_hdl, samples));
@@ -616,6 +683,88 @@ static int test_wss_luma_matches_yuv420p_for_supported_dimensions(void)
 				wss_used_length));
 
 		klsmpte2064_context_free(yuv_hdl);
+		klsmpte2064_context_free(wss_hdl);
+		free(frame);
+	}
+
+	return 0;
+}
+
+static int test_wss_luma_matches_v210_for_supported_dimensions(void)
+{
+	struct format_case {
+		uint32_t width;
+		uint32_t height;
+	};
+	const struct format_case cases[] = {
+		{1920, 1080},
+		{3840, 2160},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		void *v210_hdl = NULL;
+		void *wss_hdl = NULL;
+		struct klsmpte2064_video_wss_geometry geometry = {0};
+		uint8_t samples[KLSMPTE2064_WSS_ROWS]
+			[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
+		uint8_t v210_section[256] = {0};
+		uint8_t wss_section[256] = {0};
+		uint32_t v210_used_length = 0;
+		uint32_t wss_used_length = 0;
+		const uint32_t width = cases[i].width;
+		const uint32_t height = cases[i].height;
+		const uint32_t stride = width * 8 / 3;
+		const size_t frame_size = (size_t)stride * height;
+		uint8_t *frame = calloc(1, frame_size);
+
+		EXPECT_TRUE(frame != NULL);
+		EXPECT_EQ_INT(0,
+			alloc_context(&v210_hdl,
+				COLORSPACE_V210,
+				width,
+				height,
+				stride,
+				10));
+		EXPECT_EQ_INT(0,
+			klsmpte2064_context_alloc_wss_luma(&wss_hdl,
+				1,
+				width,
+				height));
+		EXPECT_EQ_INT(0,
+			klsmpte2064_video_get_wss_geometry(wss_hdl, &geometry));
+
+		for (uint8_t seed = 1; seed <= 3; seed++) {
+			fill_v210_pattern(frame, width, height, stride, seed);
+			EXPECT_EQ_INT(0, klsmpte2064_video_push(v210_hdl, frame));
+			EXPECT_EQ_INT(0,
+				klsmpte2064_video_extract_wss_luma_v210(&geometry,
+					frame,
+					width,
+					stride,
+					samples));
+			EXPECT_EQ_INT(0,
+				klsmpte2064_video_push_wss_luma(wss_hdl, samples));
+		}
+
+		EXPECT_EQ_INT(0,
+			pack_section(v210_hdl,
+				v210_section,
+				sizeof(v210_section),
+				&v210_used_length));
+		EXPECT_EQ_INT(0,
+			pack_section(wss_hdl,
+				wss_section,
+				sizeof(wss_section),
+				&wss_used_length));
+		EXPECT_TRUE(verify_checksum(v210_section, v210_used_length));
+		EXPECT_TRUE(verify_checksum(wss_section, wss_used_length));
+		EXPECT_EQ_INT(0,
+			expect_bytes(v210_section,
+				v210_used_length,
+				wss_section,
+				wss_used_length));
+
+		klsmpte2064_context_free(v210_hdl);
 		klsmpte2064_context_free(wss_hdl);
 		free(frame);
 	}
@@ -986,8 +1135,11 @@ int main(void)
 		{ "direct WSS luma golden video sections",
 			test_wss_luma_golden_video_sections },
 		{ "WSS geometry API", test_wss_geometry_api },
+		{ "reset APIs", test_reset_apis },
 		{ "direct WSS luma matches YUV420P supported dimensions",
 			test_wss_luma_matches_yuv420p_for_supported_dimensions },
+		{ "direct WSS luma matches V210 supported dimensions",
+			test_wss_luma_matches_v210_for_supported_dimensions },
 		{ "YUV420P golden audio section", test_yuv420p_golden_audio_section },
 		{ "YUV420P video and encapsulation validation",
 			test_video_api_yuv420p_and_encapsulation_validation },

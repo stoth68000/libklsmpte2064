@@ -11,6 +11,8 @@ static int _video_prefilter(struct ctx_s *ctx, const uint8_t *luma, int src_stri
 static int _video_window_subsampling_progressive(struct ctx_s *ctx);
 static int _video_window_compute_motion(struct ctx_s *ctx);
 static void _video_window_rotate(struct ctx_s *ctx);
+static int geometry_is_valid(const struct klsmpte2064_video_wss_geometry *geometry);
+static uint8_t v210_luma_sample_8b(const uint8_t *line, uint32_t x);
 
 /* Table 1 - Video Format Prefilter */
 struct tbl1_s tbl1[] = {
@@ -184,6 +186,87 @@ int klsmpte2064_video_get_wss_geometry(void *hdl,
 	return 0;
 }
 
+int klsmpte2064_video_extract_wss_luma_yuv420p(
+	const struct klsmpte2064_video_wss_geometry *geometry,
+	const uint8_t *lumaplane,
+	uint32_t width,
+	uint32_t stride,
+	uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
+{
+	if (!geometry_is_valid(geometry) || !lumaplane || !samples ||
+		!width || stride < width) {
+		return -EINVAL;
+	}
+
+	for (uint32_t r = 0; r < geometry->row_count; r++) {
+		const uint8_t *line = lumaplane + ((uint32_t)geometry->rows[r] * stride);
+		for (uint32_t c = 0; c < geometry->samples_per_row; c++) {
+			if (geometry->prefilter_tap_count == 0) {
+				samples[r][c] = line[geometry->columns[c]];
+				continue;
+			}
+
+			int sum = 0;
+			int count = 0;
+			for (uint32_t tap = 0; tap < geometry->prefilter_tap_count; tap++) {
+				const int x = geometry->columns[c] +
+					geometry->prefilter_offsets[tap];
+				if (x >= 0 && x < (int)width) {
+					sum += line[x];
+					count++;
+				}
+			}
+			if (!count) {
+				return -EINVAL;
+			}
+			samples[r][c] = (uint8_t)(sum / count);
+		}
+	}
+
+	return 0;
+}
+
+int klsmpte2064_video_extract_wss_luma_v210(
+	const struct klsmpte2064_video_wss_geometry *geometry,
+	const uint8_t *frame,
+	uint32_t width,
+	uint32_t stride,
+	uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
+{
+	if (!geometry_is_valid(geometry) || !frame || !samples ||
+		!width || (width % 6) != 0 || stride < ((width / 6) * 16)) {
+		return -EINVAL;
+	}
+
+	for (uint32_t r = 0; r < geometry->row_count; r++) {
+		const uint8_t *line = frame + ((uint32_t)geometry->rows[r] * stride);
+		for (uint32_t c = 0; c < geometry->samples_per_row; c++) {
+			if (geometry->prefilter_tap_count == 0) {
+				samples[r][c] = v210_luma_sample_8b(line,
+					(uint32_t)geometry->columns[c]);
+				continue;
+			}
+
+			int sum = 0;
+			int count = 0;
+			for (uint32_t tap = 0; tap < geometry->prefilter_tap_count; tap++) {
+				const int x = geometry->columns[c] +
+					geometry->prefilter_offsets[tap];
+				if (x >= 0 && x < (int)width) {
+					sum += v210_luma_sample_8b(line, (uint32_t)x);
+					count++;
+				}
+			}
+			if (!count) {
+				return -EINVAL;
+			}
+			samples[r][c] = (uint8_t)(sum / count);
+		}
+	}
+
+	return 0;
+}
+
 int klsmpte2064_video_push_wss_luma(void *hdl,
 	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
 {
@@ -198,6 +281,77 @@ int klsmpte2064_video_push_wss_luma(void *hdl,
 		sizeof(ctx->wss_f4));
 
 	return _video_window_compute_motion(ctx);
+}
+
+int klsmpte2064_video_reset(void *hdl)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	memset(ctx->wss_f4, 0, sizeof(ctx->wss_f4));
+	memset(ctx->wss_f3, 0, sizeof(ctx->wss_f3));
+	memset(ctx->wss_f2, 0, sizeof(ctx->wss_f2));
+	ctx->video_fingerprint_data_f4 = 0;
+	ctx->video_fingerprint_data_f3 = 0;
+	ctx->video_fingerprint_data_f2 = 0;
+	ctx->fingerprints_calculated = 0;
+	ctx->motion = 0.0;
+	return 0;
+}
+
+static int geometry_is_valid(const struct klsmpte2064_video_wss_geometry *geometry)
+{
+	if (!geometry ||
+		geometry->row_count != KLSMPTE2064_WSS_ROWS ||
+		geometry->samples_per_row != KLSMPTE2064_WSS_SAMPLES_PER_ROW ||
+		geometry->prefilter_tap_count > KLSMPTE2064_VIDEO_PREFILTER_MAX_TAPS) {
+		return 0;
+	}
+	for (uint32_t r = 0; r < geometry->row_count; r++) {
+		if (geometry->rows[r] < 0) {
+			return 0;
+		}
+	}
+	for (uint32_t c = 0; c < geometry->samples_per_row; c++) {
+		if (geometry->columns[c] < 0) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static uint8_t v210_luma_sample_8b(const uint8_t *line, uint32_t x)
+{
+	const uint32_t *words = (const uint32_t *)line;
+	const uint32_t group = x / 6;
+	const uint32_t offset = x % 6;
+	const uint32_t *w = words + (group * 4);
+	uint32_t sample = 0;
+
+	switch (offset) {
+	case 0:
+		sample = (w[0] >> 10) & 0x3ff;
+		break;
+	case 1:
+		sample = w[1] & 0x3ff;
+		break;
+	case 2:
+		sample = (w[1] >> 20) & 0x3ff;
+		break;
+	case 3:
+		sample = (w[2] >> 10) & 0x3ff;
+		break;
+	case 4:
+		sample = w[3] & 0x3ff;
+		break;
+	default:
+		sample = (w[3] >> 20) & 0x3ff;
+		break;
+	}
+
+	return (uint8_t)(sample >> 2);
 }
 
 /* Copy the luma rows that feed the fingerprint into our context and apply the

@@ -139,6 +139,19 @@ int klsmpte2064_context_alloc_wss_luma(void **hdl,
 int klsmpte2064_context_set_verbose(void *hdl, int level);
 
 /**
+ * @brief Reset all fingerprint state in a context.
+ *
+ * This clears video motion history, audio fingerprint data, cached audio
+ * timebase selection, and encapsulation sequence state without reallocating the
+ * context. Use this for source replacement or a major stream discontinuity.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @return 0 on success.
+ * @return -EINVAL when hdl is NULL.
+ */
+int klsmpte2064_context_reset(void *hdl);
+
+/**
  * @brief	    Free a previously allocated handle.
  * @param[in]	void * - A previously allocated content/handle
  */

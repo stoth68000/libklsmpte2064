@@ -168,3 +168,22 @@ int klsmpte2064_context_set_verbose(void *hdl, int level)
 	ctx->verbose = level;
 	return 0;
 }
+
+int klsmpte2064_context_reset(void *hdl)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	klsmpte2064_video_reset(hdl);
+	for (int i = AUDIOTYPE_UNDEFINED + 1; i < AUDIOTYPE_MAX; i++) {
+		klsmpte2064_audio_reset(hdl, (enum klsmpte2064_audio_type_e)i);
+	}
+	ctx->t3 = NULL;
+	ctx->timebase_num = 0;
+	ctx->timebase_den = 0;
+	ctx->sequence_counter = 0;
+	klbs_init(ctx->bs);
+	return 0;
+}
