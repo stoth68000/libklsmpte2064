@@ -14,11 +14,19 @@ int klsmpte2064_context_alloc(void **hdl,
 	uint32_t stride,
 	uint32_t bitdepth)
 {
+	struct ctx_s *ctx = NULL;
+	int ret = 0;
+
+	if (!hdl) {
+		return -EINVAL;
+	}
+	*hdl = NULL;
+
 	if (!colorspace || !width || !height || !stride || (bitdepth != 8 && bitdepth != 10) || progressive != 1) {
 		return -EINVAL;
 	}
 
-	struct ctx_s *ctx = calloc(1, sizeof(*ctx));
+	ctx = calloc(1, sizeof(*ctx));
 	if (!ctx) {
 		return -ENOMEM;
 	}
@@ -26,13 +34,13 @@ int klsmpte2064_context_alloc(void **hdl,
 	ctx->ystride = width;
 	ctx->y = malloc(width * height);
 	if (!ctx->y) {
-		fprintf(stderr, MODULE_PREFIX "unable to allocate luma frame, aborting.\n");
-		exit(0);
+		ret = -ENOMEM;
+		goto fail;
 	}
 	ctx->y_csc = malloc(width * height);
 	if (!ctx->y_csc) {
-		fprintf(stderr, MODULE_PREFIX "unable to allocate luma frame, aborting.\n");
-		exit(0);
+		ret = -ENOMEM;
+		goto fail;
 	}
 
 	ctx->colorspace = colorspace;
@@ -46,14 +54,14 @@ int klsmpte2064_context_alloc(void **hdl,
 
 	ctx->t1 = lookupTable1(progressive, width, height);
 	if (!ctx->t1) {
-		free(ctx);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto fail;
 	}
 
 	ctx->t2 = lookupTable2(progressive, width, height);
 	if (!ctx->t2) {
-		free(ctx);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto fail;
 	}
 
 	/* Progressive only - cache a list of line numbers in each frame.
@@ -77,16 +85,30 @@ int klsmpte2064_context_alloc(void **hdl,
 	ctx->wss_line_count = 0; 
 #endif
 	ctx->bs = klbs_alloc();
+	if (!ctx->bs) {
+		ret = -ENOMEM;
+		goto fail;
+	}
 
-	klsmpte2064_audio_alloc(ctx);
+	ret = klsmpte2064_audio_alloc(ctx);
+	if (ret < 0) {
+		goto fail;
+	}
 
 	*hdl = ctx;
 	return 0; /* Success */
+
+fail:
+	klsmpte2064_context_free(ctx);
+	return ret;
 }
 
 void klsmpte2064_context_free(void *hdl)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx) {
+		return;
+	}
 
 	klsmpte2064_audio_free(ctx);
 	klbs_free(ctx->bs);
