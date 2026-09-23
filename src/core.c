@@ -22,7 +22,13 @@ int klsmpte2064_context_alloc(void **hdl,
 	}
 	*hdl = NULL;
 
-	if (!colorspace || !width || !height || !stride || (bitdepth != 8 && bitdepth != 10) || progressive != 1) {
+	if (!colorspace || colorspace >= COLORSPACE_MAX ||
+		!width || !height || !stride ||
+		(bitdepth != 8 && bitdepth != 10) || progressive != 1) {
+		return -EINVAL;
+	}
+	if ((colorspace == COLORSPACE_YUV420P && bitdepth != 8) ||
+		(colorspace == COLORSPACE_V210 && bitdepth != 10)) {
 		return -EINVAL;
 	}
 
@@ -120,6 +126,9 @@ void klsmpte2064_context_free(void *hdl)
 int klsmpte2064_context_set_verbose(void *hdl, int level)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	if (!ctx) {
+		return -EINVAL;
+	}
 	ctx->verbose = level;
 	return 0;
 }

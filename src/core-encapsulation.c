@@ -10,7 +10,7 @@
 int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
-	if (!ctx || !data || len < 256) {
+	if (!ctx || !data || !usedLength || len < 256) {
 		return -EINVAL;
 	}
 	if (ctx->fingerprints_calculated < 3) {
@@ -136,8 +136,12 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 		}
 	}
 
+	const uint32_t length_without_checksum = klbs_get_byte_count(ctx->bs);
+	const uint32_t packed_length = length_without_checksum + 1;
+	*(data + 2) = packed_length;
+
 	uint32_t c = 0;
-	for (int i = 0; i < klbs_get_byte_count(ctx->bs); i++) {
+	for (uint32_t i = 0; i < length_without_checksum; i++) {
 		c += *(data + i);
 	}
 	uint8_t checksum = (uint8_t)(-c & 0xFF);
@@ -154,11 +158,9 @@ int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint3
 
 	klbs_write_buffer_complete(ctx->bs);
 
-	/* Go back and patch the struct to reflext the packed length */
 	/* "length of the audio and video fingerprint container from the start of the FP_protocol_version
 	 *  field to the end of the Checksum field (inclusive)."
 	 */
-	*(data + 2) = klbs_get_byte_count(ctx->bs);
 	*usedLength = klbs_get_byte_count(ctx->bs);
 
 	return 0;
