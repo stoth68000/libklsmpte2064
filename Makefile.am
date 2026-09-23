@@ -1,5 +1,5 @@
 AUTOMAKE_OPTIONS = foreign
-SUBDIRS = src tools
+SUBDIRS = src tools tests
 EXTRA_DIST = doxygen/libklsmpte2064.doxyconf doxygen/include
 
 docs:
