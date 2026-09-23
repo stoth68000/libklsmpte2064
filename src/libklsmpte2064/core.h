@@ -66,6 +66,8 @@
 #include <stdarg.h>
 #include <sys/errno.h>
 
+#include <libklsmpte2064/export.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -87,6 +89,10 @@ extern "C" {
 #define KLSMPTE2064_CAP_RESET_APIS (1u << 3)
 /** Format support probing APIs are available. */
 #define KLSMPTE2064_CAP_FORMAT_PROBING (1u << 4)
+/** Context status query API is available. */
+#define KLSMPTE2064_CAP_STATUS_API (1u << 5)
+/** Raw fingerprint query API is available. */
+#define KLSMPTE2064_CAP_RAW_FINGERPRINT_API (1u << 6)
 
 /**
  * @brief Video input format identifiers.
@@ -104,7 +110,7 @@ enum klsmpte2064_colorspace_e
  *
  * @return Static semantic version string for the linked library.
  */
-const char *klsmpte2064_version_string(void);
+KLSMPTE2064_API const char *klsmpte2064_version_string(void);
 
 /**
  * @brief Return the library version components.
@@ -115,7 +121,9 @@ const char *klsmpte2064_version_string(void);
  * @param[out] minor Receives the minor version.
  * @param[out] patch Receives the patch version.
  */
-void klsmpte2064_version(uint32_t *major, uint32_t *minor, uint32_t *patch);
+KLSMPTE2064_API void klsmpte2064_version(uint32_t *major,
+	uint32_t *minor,
+	uint32_t *patch);
 
 /**
  * @brief Return supported integration capability flags.
@@ -125,7 +133,7 @@ void klsmpte2064_version(uint32_t *major, uint32_t *minor, uint32_t *patch);
  *
  * @return Bitmask of KLSMPTE2064_CAP_* flags.
  */
-uint32_t klsmpte2064_capabilities(void);
+KLSMPTE2064_API uint32_t klsmpte2064_capabilities(void);
 
 /**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.
@@ -146,7 +154,7 @@ uint32_t klsmpte2064_capabilities(void);
  * the same context must be serialized by the caller. Separate contexts may be
  * used concurrently from different threads.
  */
-int klsmpte2064_context_alloc(void **hdl,
+KLSMPTE2064_API int klsmpte2064_context_alloc(void **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
@@ -179,7 +187,7 @@ int klsmpte2064_context_alloc(void **hdl,
  * the same context must be serialized by the caller. Separate contexts may be
  * used concurrently from different threads.
  */
-int klsmpte2064_context_alloc_wss_luma(void **hdl,
+KLSMPTE2064_API int klsmpte2064_context_alloc_wss_luma(void **hdl,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height);
@@ -193,7 +201,7 @@ int klsmpte2064_context_alloc_wss_luma(void **hdl,
  * @return      0 - Success
  * @return      < 0 - Error
  */
-int klsmpte2064_context_set_verbose(void *hdl, int level);
+KLSMPTE2064_API int klsmpte2064_context_set_verbose(void *hdl, int level);
 
 /**
  * @brief Reset all fingerprint state in a context.
@@ -207,13 +215,13 @@ int klsmpte2064_context_set_verbose(void *hdl, int level);
  * @return 0 on success.
  * @return -EINVAL when hdl is NULL.
  */
-int klsmpte2064_context_reset(void *hdl);
+KLSMPTE2064_API int klsmpte2064_context_reset(void *hdl);
 
 /**
  * @brief	    Free a previously allocated handle.
  * @param[in] hdl A previously allocated context handle.
  */
-void klsmpte2064_context_free(void *hdl);
+KLSMPTE2064_API void klsmpte2064_context_free(void *hdl);
 
 #ifdef __cplusplus
 };

@@ -419,6 +419,8 @@ static int test_version_capabilities_and_format_probing(void)
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_WSS_EXTRACT_V210) != 0);
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_RESET_APIS) != 0);
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_FORMAT_PROBING) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_STATUS_API) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_RAW_FINGERPRINT_API) != 0);
 
 	EXPECT_EQ_INT(1,
 		klsmpte2064_video_format_supported(COLORSPACE_YUV420P,
@@ -668,6 +670,59 @@ static int test_reset_apis(void)
 
 	EXPECT_EQ_INT(0,
 		klsmpte2064_audio_reset(hdl, AUDIOTYPE_STEREO_S16P));
+	klsmpte2064_context_free(hdl);
+	return 0;
+}
+
+static int test_status_and_raw_fingerprint_apis(void)
+{
+	void *hdl = NULL;
+	struct klsmpte2064_context_status status = {0};
+	struct klsmpte2064_fingerprint fingerprint = {0};
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_status(NULL, &status));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_status((void *)0x1, NULL));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_fingerprint_get(NULL, &fingerprint));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_fingerprint_get((void *)0x1, NULL));
+
+	EXPECT_EQ_INT(0, alloc_wss_context(&hdl));
+	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
+	EXPECT_EQ_INT(0, (int)status.video_frames_pushed);
+	EXPECT_EQ_INT(0, (int)status.video_ready);
+	EXPECT_EQ_INT(0, (int)status.pack_ready);
+	EXPECT_EQ_INT(0, (int)status.audio_ready_mask);
+	EXPECT_EQ_INT(0, (int)status.sequence_counter);
+
+	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
+	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
+	EXPECT_EQ_INT(3, (int)status.video_frames_pushed);
+	EXPECT_EQ_INT(1, (int)status.video_ready);
+	EXPECT_EQ_INT(1, (int)status.pack_ready);
+	EXPECT_EQ_INT(0, (int)status.sequence_counter);
+	EXPECT_TRUE(status.motion == 1.0);
+
+	EXPECT_EQ_INT(0, klsmpte2064_fingerprint_get(hdl, &fingerprint));
+	EXPECT_EQ_INT(240, (int)fingerprint.video_fingerprint);
+	EXPECT_EQ_INT(0, (int)fingerprint.audio_length[AUDIOTYPE_STEREO_S16P]);
+
+	EXPECT_EQ_INT(0, push_all_current_audio_types(hdl));
+	EXPECT_EQ_INT(0, klsmpte2064_fingerprint_get(hdl, &fingerprint));
+	EXPECT_TRUE((fingerprint.status.audio_ready_mask &
+		(1u << AUDIOTYPE_STEREO_S16P)) != 0);
+	EXPECT_TRUE((fingerprint.status.audio_ready_mask &
+		(1u << AUDIOTYPE_STEREO_S32_CH16_DECKLINK)) != 0);
+	EXPECT_TRUE((fingerprint.status.audio_ready_mask &
+		(1u << AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK)) != 0);
+	EXPECT_TRUE(fingerprint.audio_length[AUDIOTYPE_STEREO_S16P] > 0);
+	EXPECT_TRUE(fingerprint.audio_length[AUDIOTYPE_STEREO_S32_CH16_DECKLINK] > 0);
+	EXPECT_TRUE(fingerprint.audio_length[AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK] > 0);
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
+	EXPECT_EQ_INT(1, (int)status.sequence_counter);
+
 	klsmpte2064_context_free(hdl);
 	return 0;
 }
@@ -1189,6 +1244,8 @@ static int test_hot_path_no_allocations(void)
 {
 	void *hdl = NULL;
 	struct klsmpte2064_video_wss_geometry geometry = {0};
+	struct klsmpte2064_context_status status = {0};
+	struct klsmpte2064_fingerprint fingerprint = {0};
 	uint8_t samples[KLSMPTE2064_WSS_ROWS]
 		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
 	uint8_t section[256] = {0};
@@ -1230,6 +1287,8 @@ static int test_hot_path_no_allocations(void)
 			v210_stride,
 			samples));
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
+	EXPECT_EQ_INT(0, klsmpte2064_fingerprint_get(hdl, &fingerprint));
 	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
 	EXPECT_EQ_INT(0, klsmpte2064_video_reset(hdl));
 	EXPECT_EQ_INT(0,
@@ -1265,6 +1324,8 @@ int main(void)
 			test_wss_luma_golden_video_sections },
 		{ "WSS geometry API", test_wss_geometry_api },
 		{ "reset APIs", test_reset_apis },
+		{ "status and raw fingerprint APIs",
+			test_status_and_raw_fingerprint_apis },
 		{ "direct WSS luma matches YUV420P supported dimensions",
 			test_wss_luma_matches_yuv420p_for_supported_dimensions },
 		{ "direct WSS luma matches V210 supported dimensions",

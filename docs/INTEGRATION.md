@@ -25,7 +25,9 @@ uint32_t caps = klsmpte2064_capabilities();
 klsmpte2064_version(&major, &minor, &patch);
 
 if ((caps & KLSMPTE2064_CAP_DIRECT_WSS_LUMA) == 0 ||
-    (caps & KLSMPTE2064_CAP_FORMAT_PROBING) == 0) {
+    (caps & KLSMPTE2064_CAP_FORMAT_PROBING) == 0 ||
+    (caps & KLSMPTE2064_CAP_STATUS_API) == 0 ||
+    (caps & KLSMPTE2064_CAP_RAW_FINGERPRINT_API) == 0) {
     /* Disable direct WSS integration or fail initialization. */
 }
 ```
@@ -146,6 +148,8 @@ After successful context allocation, these calls perform no dynamic allocation:
 - `klsmpte2064_video_extract_wss_luma_yuv420p`
 - `klsmpte2064_video_extract_wss_luma_v210`
 - `klsmpte2064_video_push_wss_luma`
+- `klsmpte2064_context_status`
+- `klsmpte2064_fingerprint_get`
 - `klsmpte2064_encapsulation_pack`
 - `klsmpte2064_video_reset`
 - `klsmpte2064_audio_reset`
@@ -166,6 +170,40 @@ if (klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &used) == 0) {
     /* section[0..used) contains the SMPTE 2064 fingerprint container. */
 }
 ```
+
+## Status and Raw Fingerprints
+
+Applications can query readiness before packing:
+
+```c
+struct klsmpte2064_context_status status;
+
+if (klsmpte2064_context_status(hdl, &status) == 0 && status.pack_ready) {
+    klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &used);
+}
+```
+
+`status.video_frames_pushed` reports how many video fingerprint updates have
+been computed. `status.video_ready` and `status.pack_ready` become nonzero
+after enough video history exists for encapsulation. `status.audio_ready_mask`
+has bit `1 << type` set for each audio fingerprint type with current data.
+`status.sequence_counter` is the sequence value that the next pack call will
+write, and `status.motion` is the latest video motion score from 0.0 to 1.0.
+
+For diagnostics, matching, or Iris-internal telemetry that does not need a
+packed SMPTE section, callers can fetch the raw fingerprint snapshot:
+
+```c
+struct klsmpte2064_fingerprint fp;
+
+if (klsmpte2064_fingerprint_get(hdl, &fp) == 0 && fp.status.video_ready) {
+    uint8_t video_fp = fp.video_fingerprint;
+    uint8_t stereo_len = fp.audio_length[AUDIOTYPE_STEREO_S16P];
+    const uint8_t *stereo_fp = fp.audio[AUDIOTYPE_STEREO_S16P];
+}
+```
+
+Status and raw fingerprint queries perform no dynamic allocation.
 
 ## CPU Reference Extractors
 
@@ -205,3 +243,31 @@ klsmpte2064_context_reset(hdl);               /* Full context state. */
 `klsmpte2064_context_reset()` clears video history, audio fingerprints, cached
 audio timebase, and encapsulation sequence state without reallocating the
 context.
+
+## ABI and Symbol Visibility
+
+Public functions are marked with `KLSMPTE2064_API` from
+`libklsmpte2064/export.h`. The library is built with hidden symbol visibility,
+so consumers should treat declarations in installed `libklsmpte2064/*.h`
+headers as the supported ABI surface. Internal helpers, private structs, and
+test-only symbols are not part of the compatibility contract.
+
+Applications should include the umbrella header unless they need a narrower
+compile boundary:
+
+```c
+#include <libklsmpte2064/klsmpte2064.h>
+```
+
+## Benchmarking
+
+Run the lightweight benchmark target after performance-sensitive changes:
+
+```sh
+make bench
+```
+
+The benchmark reports timing for direct WSS push, status/raw fingerprint
+queries, encapsulation packing, and the YUV420P CPU reference extractor. These
+numbers are intended as a local regression guard, not as a cross-machine
+performance contract.

@@ -12,6 +12,8 @@
 #include <stdarg.h>
 #include <sys/errno.h>
 
+#include <libklsmpte2064/export.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,7 +31,7 @@ extern "C" {
  * @param[in] width Width in pixels.
  * @param[in] height Height in lines.
  */
-void v210_planar_unpack_c(const uint32_t *src,
+KLSMPTE2064_API void v210_planar_unpack_c(const uint32_t *src,
 	uint32_t src_stride,
 	uint16_t *y,
 	uint32_t y_stride,
@@ -52,7 +54,7 @@ void v210_planar_unpack_c(const uint32_t *src,
  * @param[in] lines Optional list of source line numbers to convert.
  * @param[in] lineCount Number of entries in lines.
  */
-void v210_planar_unpack_c_to_8b(const uint32_t *src,
+KLSMPTE2064_API void v210_planar_unpack_c_to_8b(const uint32_t *src,
 	uint32_t src_stride,
 	uint8_t *y,
 	uint32_t y_stride,

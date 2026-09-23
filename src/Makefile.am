@@ -10,11 +10,13 @@ lib_LTLIBRARIES = libklsmpte2064.la
 libklsmpte2064_la_SOURCES  = core.c
 libklsmpte2064_la_SOURCES += core-audio.c
 libklsmpte2064_la_SOURCES += core-video.c
+libklsmpte2064_la_SOURCES += core-fingerprint.c
 libklsmpte2064_la_SOURCES += core-encapsulation.c
 libklsmpte2064_la_SOURCES += core-csc.c
 
 libklsmpte2064_la_CFLAGS = -Wall -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" \
-	-D_FILE_OFFSET_BITS=64 -O3 -D_BSD_SOURCE -I$(top_srcdir)/include
+	-D_FILE_OFFSET_BITS=64 -O3 -D_BSD_SOURCE -DKLSMPTE2064_BUILD \
+	-fvisibility=hidden -I$(top_srcdir)/include
 
 #if DEBUG
   libklsmpte2064_la_CFLAGS += -g
@@ -23,9 +25,10 @@ libklsmpte2064_la_CFLAGS = -Wall -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"
 libklsmpte2064_includedir = $(includedir)/libklsmpte2064
 
 libklsmpte2064_include_HEADERS  = libklsmpte2064/klsmpte2064.h
+libklsmpte2064_include_HEADERS += libklsmpte2064/export.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-csc.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-encapsulation.h
+libklsmpte2064_include_HEADERS += libklsmpte2064/core-fingerprint.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-video.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core-audio.h
 libklsmpte2064_include_HEADERS += libklsmpte2064/core.h
-

@@ -12,6 +12,8 @@
 #include <stdarg.h>
 #include <sys/errno.h>
 
+#include <libklsmpte2064/export.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,7 +31,10 @@ extern "C" {
  * This function writes into caller-supplied storage and performs no dynamic
  * allocation.
  */
-int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength);
+KLSMPTE2064_API int klsmpte2064_encapsulation_pack(void *hdl,
+	uint8_t *data,
+	uint32_t len,
+	uint32_t *usedLength);
 
 #ifdef __cplusplus
 };

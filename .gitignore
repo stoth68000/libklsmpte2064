@@ -22,10 +22,12 @@ libklsmpte2064.la
 src/libklsmpte2064_la-*.lo
 src/libklsmpte2064.pc
 doxygen/html
+doxygen/generated
 tools/klsmpte2064_util
 test-driver
 tests/test-suite.log
 tests/test_core
+tests/bench_core
 tests/*.log
 tests/*.trs
 .DS_Store

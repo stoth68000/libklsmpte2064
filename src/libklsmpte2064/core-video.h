@@ -12,6 +12,8 @@
 #include <stdarg.h>
 #include <sys/errno.h>
 
+#include <libklsmpte2064/export.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,7 +68,7 @@ struct klsmpte2064_video_wss_geometry {
  * @param[in] bitdepth Source bit depth.
  * @return 1 when supported, 0 when unsupported.
  */
-int klsmpte2064_video_format_supported(
+KLSMPTE2064_API int klsmpte2064_video_format_supported(
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
@@ -84,7 +86,7 @@ int klsmpte2064_video_format_supported(
  * @param[in] height Video height in pixels.
  * @return 1 when supported, 0 when unsupported.
  */
-int klsmpte2064_video_wss_luma_format_supported(
+KLSMPTE2064_API int klsmpte2064_video_wss_luma_format_supported(
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height);
@@ -101,7 +103,7 @@ int klsmpte2064_video_wss_luma_format_supported(
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
+KLSMPTE2064_API int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
 
 /**
  * @brief	    Query the SMPTE 2064 sampling geometry for a context.
@@ -128,7 +130,7 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-int klsmpte2064_video_get_wss_geometry(void *hdl,
+KLSMPTE2064_API int klsmpte2064_video_get_wss_geometry(void *hdl,
 	struct klsmpte2064_video_wss_geometry *geometry);
 
 /**
@@ -149,7 +151,7 @@ int klsmpte2064_video_get_wss_geometry(void *hdl,
  *
  * This function performs no dynamic allocation.
  */
-int klsmpte2064_video_extract_wss_luma_yuv420p(
+KLSMPTE2064_API int klsmpte2064_video_extract_wss_luma_yuv420p(
 	const struct klsmpte2064_video_wss_geometry *geometry,
 	const uint8_t *lumaplane,
 	uint32_t width,
@@ -173,7 +175,7 @@ int klsmpte2064_video_extract_wss_luma_yuv420p(
  *
  * This function performs no dynamic allocation.
  */
-int klsmpte2064_video_extract_wss_luma_v210(
+KLSMPTE2064_API int klsmpte2064_video_extract_wss_luma_v210(
 	const struct klsmpte2064_video_wss_geometry *geometry,
 	const uint8_t *frame,
 	uint32_t width,
@@ -208,7 +210,7 @@ int klsmpte2064_video_extract_wss_luma_v210(
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-int klsmpte2064_video_push_wss_luma(void *hdl,
+KLSMPTE2064_API int klsmpte2064_video_push_wss_luma(void *hdl,
 	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]);
 
 /**
@@ -226,7 +228,7 @@ int klsmpte2064_video_push_wss_luma(void *hdl,
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-int klsmpte2064_video_reset(void *hdl);
+KLSMPTE2064_API int klsmpte2064_video_reset(void *hdl);
 
 #ifdef __cplusplus
 };

@@ -5,10 +5,17 @@ AM_CFLAGS = -Wall -O2
 
 TESTS = test_core test_util.sh
 check_PROGRAMS = test_core
+noinst_PROGRAMS = bench_core
 EXTRA_DIST = test_util.sh
 
 test_core_SOURCES = test_core.c
 test_core_LDADD = ../src/libklsmpte2064.la -lm
+
+bench_core_SOURCES = bench_core.c
+bench_core_LDADD = ../src/libklsmpte2064.la -lm
+
+bench: bench_core
+	./bench_core
 
 check-local:
 	@total=0; passed=0; failed=0; \

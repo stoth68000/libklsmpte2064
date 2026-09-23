@@ -8,5 +8,8 @@ docs:
 docs-check:
 	cd doxygen && doxygen libklsmpte2064.doxyconf
 
+bench:
+	cd tests && $(MAKE) bench
+
 test:
 	cd tools && make test

@@ -12,6 +12,8 @@
 #include <stdarg.h>
 #include <sys/errno.h>
 
+#include <libklsmpte2064/export.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,7 +45,7 @@ enum klsmpte2064_audio_type_e
  * @return      0 - Success
  * @return      < 0 - Error
  */
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
+KLSMPTE2064_API int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
     uint32_t timebase_num, uint32_t timebase_den,
     const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount);
 
@@ -60,7 +62,7 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
  * @return 0 on success.
  * @return -EINVAL on invalid handle or type.
  */
-int klsmpte2064_audio_reset(void *hdl, enum klsmpte2064_audio_type_e type);
+KLSMPTE2064_API int klsmpte2064_audio_reset(void *hdl, enum klsmpte2064_audio_type_e type);
 
 #ifdef __cplusplus
 };
