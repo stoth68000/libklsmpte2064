@@ -17,7 +17,39 @@ static int metadata_is_valid(const struct klsmpte2064_encapsulation_metadata *me
 	return 1;
 }
 
-int klsmpte2064_encapsulation_set_metadata(void *hdl,
+int klsmpte2064_picture_rate_from_timebase(uint32_t timebase_num,
+	uint32_t timebase_den,
+	uint8_t *picture_rate)
+{
+	if (!picture_rate || !timebase_num || !timebase_den) {
+		return -EINVAL;
+	}
+
+	if (timebase_num == 1001 && timebase_den == 24000) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_23976;
+	} else if (timebase_num == 1 && timebase_den == 24) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_24;
+	} else if (timebase_num == 1 && timebase_den == 25) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_25;
+	} else if (timebase_num == 1001 && timebase_den == 30000) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_2997;
+	} else if (timebase_num == 1 && timebase_den == 30) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_30;
+	} else if (timebase_num == 1 && timebase_den == 50) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_50;
+	} else if (timebase_num == 1001 && timebase_den == 60000) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_5994;
+	} else if (timebase_num == 1 && timebase_den == 60) {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_60;
+	} else {
+		*picture_rate = KLSMPTE2064_PICTURE_RATE_UNKNOWN;
+		return -ENOTSUP;
+	}
+
+	return 0;
+}
+
+int klsmpte2064_encapsulation_set_metadata(klsmpte2064_context *hdl,
 	const struct klsmpte2064_encapsulation_metadata *metadata)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -37,7 +69,7 @@ int klsmpte2064_encapsulation_set_metadata(void *hdl,
 	return 0;
 }
 
-int klsmpte2064_encapsulation_get_metadata(void *hdl,
+int klsmpte2064_encapsulation_get_metadata(klsmpte2064_context *hdl,
 	struct klsmpte2064_encapsulation_metadata *metadata)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -50,7 +82,7 @@ int klsmpte2064_encapsulation_get_metadata(void *hdl,
 }
 
 /* 6.1 - Table 5 - Container structure */
-int klsmpte2064_encapsulation_pack(void *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength)
+int klsmpte2064_encapsulation_pack(klsmpte2064_context *hdl, uint8_t *data, uint32_t len, uint32_t *usedLength)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx || !data || !usedLength || len < 256) {

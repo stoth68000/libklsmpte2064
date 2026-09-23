@@ -13,6 +13,7 @@
 #include <sys/errno.h>
 
 #include <libklsmpte2064/export.h>
+#include <libklsmpte2064/core.h>
 #include <libklsmpte2064/core-audio.h>
 
 #ifdef __cplusplus
@@ -66,7 +67,7 @@ struct klsmpte2064_fingerprint {
  *
  * This function performs no dynamic allocation.
  */
-KLSMPTE2064_API int klsmpte2064_context_status(void *hdl,
+KLSMPTE2064_API int klsmpte2064_context_status(klsmpte2064_context *hdl,
 	struct klsmpte2064_context_status *status);
 
 /**
@@ -79,7 +80,7 @@ KLSMPTE2064_API int klsmpte2064_context_status(void *hdl,
  *
  * This function performs no dynamic allocation.
  */
-KLSMPTE2064_API int klsmpte2064_fingerprint_get(void *hdl,
+KLSMPTE2064_API int klsmpte2064_fingerprint_get(klsmpte2064_context *hdl,
 	struct klsmpte2064_fingerprint *fingerprint);
 
 #ifdef __cplusplus

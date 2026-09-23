@@ -20,7 +20,7 @@
  * Your project might need to do something like this:
  *
  * @code{.sh}
- * void *hdl;
+ * klsmpte2064_context *hdl;
  * 
  * klsmpte2064_context_alloc(&hdl, COLORSPACE_V210, 1280, 720, strideBytes, 10);
  * 
@@ -72,6 +72,9 @@
 extern "C" {
 #endif
 
+/** Opaque library context handle. */
+typedef void klsmpte2064_context;
+
 /** Major version of the public API. */
 #define KLSMPTE2064_VERSION_MAJOR 1
 /** Minor version of the public API. */
@@ -105,6 +108,16 @@ extern "C" {
 #define KLSMPTE2064_CAP_RAW_FINGERPRINT_API (1u << 6)
 /** Encapsulation metadata configuration API is available. */
 #define KLSMPTE2064_CAP_ENCAPSULATION_METADATA (1u << 7)
+/** GPU-ready flattened WSS sampler plan API is available. */
+#define KLSMPTE2064_CAP_WSS_SAMPLER_PLAN (1u << 8)
+/** Video push-result API is available. */
+#define KLSMPTE2064_CAP_VIDEO_PUSH_RESULT (1u << 9)
+/** Picture-rate helper API is available. */
+#define KLSMPTE2064_CAP_PICTURE_RATE_HELPERS (1u << 10)
+/** WSS conformance vector API is available. */
+#define KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS (1u << 11)
+/** Error string API is available. */
+#define KLSMPTE2064_CAP_ERROR_STRINGS (1u << 12)
 
 /** Capability set expected by the GPU direct-WSS integration path. */
 #define KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES \
@@ -115,7 +128,15 @@ extern "C" {
 	 KLSMPTE2064_CAP_FORMAT_PROBING | \
 	 KLSMPTE2064_CAP_STATUS_API | \
 	 KLSMPTE2064_CAP_RAW_FINGERPRINT_API | \
-	 KLSMPTE2064_CAP_ENCAPSULATION_METADATA)
+	 KLSMPTE2064_CAP_ENCAPSULATION_METADATA | \
+	 KLSMPTE2064_CAP_WSS_SAMPLER_PLAN | \
+	 KLSMPTE2064_CAP_VIDEO_PUSH_RESULT | \
+	 KLSMPTE2064_CAP_PICTURE_RATE_HELPERS | \
+	 KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS | \
+	 KLSMPTE2064_CAP_ERROR_STRINGS)
+
+/** Version value used by extensible public structs introduced in API 1.0. */
+#define KLSMPTE2064_STRUCT_VERSION_1 1u
 
 /**
  * @brief Video input format identifiers.
@@ -167,6 +188,17 @@ KLSMPTE2064_API uint32_t klsmpte2064_capabilities(void);
 KLSMPTE2064_API int klsmpte2064_capabilities_satisfy(uint32_t required);
 
 /**
+ * @brief Return a stable, human-readable string for a library return code.
+ *
+ * Positive errno values and negative errno-style return values are both
+ * accepted. Unknown values return "unknown error".
+ *
+ * @param[in] err Error code, for example -EINVAL or EINVAL.
+ * @return Static error string.
+ */
+KLSMPTE2064_API const char *klsmpte2064_strerror(int err);
+
+/**
  * @brief	    Allocate a unique handle for the framework, for use with further calls.
  *              The library supports all of the colorspace formats listed in the enum, a 8 or 10 bit depth
  *              packing. Most 8 bit codec typically take YUV420P, 8 bit. If you want higher levels of depth
@@ -185,7 +217,7 @@ KLSMPTE2064_API int klsmpte2064_capabilities_satisfy(uint32_t required);
  * the same context must be serialized by the caller. Separate contexts may be
  * used concurrently from different threads.
  */
-KLSMPTE2064_API int klsmpte2064_context_alloc(void **hdl,
+KLSMPTE2064_API int klsmpte2064_context_alloc(klsmpte2064_context **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
@@ -218,7 +250,7 @@ KLSMPTE2064_API int klsmpte2064_context_alloc(void **hdl,
  * the same context must be serialized by the caller. Separate contexts may be
  * used concurrently from different threads.
  */
-KLSMPTE2064_API int klsmpte2064_context_alloc_wss_luma(void **hdl,
+KLSMPTE2064_API int klsmpte2064_context_alloc_wss_luma(klsmpte2064_context **hdl,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height);
@@ -232,7 +264,8 @@ KLSMPTE2064_API int klsmpte2064_context_alloc_wss_luma(void **hdl,
  * @return      0 - Success
  * @return      < 0 - Error
  */
-KLSMPTE2064_API int klsmpte2064_context_set_verbose(void *hdl, int level);
+KLSMPTE2064_API int klsmpte2064_context_set_verbose(klsmpte2064_context *hdl,
+	int level);
 
 /**
  * @brief Reset all fingerprint state in a context.
@@ -246,13 +279,13 @@ KLSMPTE2064_API int klsmpte2064_context_set_verbose(void *hdl, int level);
  * @return 0 on success.
  * @return -EINVAL when hdl is NULL.
  */
-KLSMPTE2064_API int klsmpte2064_context_reset(void *hdl);
+KLSMPTE2064_API int klsmpte2064_context_reset(klsmpte2064_context *hdl);
 
 /**
  * @brief	    Free a previously allocated handle.
  * @param[in] hdl A previously allocated context handle.
  */
-KLSMPTE2064_API void klsmpte2064_context_free(void *hdl);
+KLSMPTE2064_API void klsmpte2064_context_free(klsmpte2064_context *hdl);
 
 #ifdef __cplusplus
 };

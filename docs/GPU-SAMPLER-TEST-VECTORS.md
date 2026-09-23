@@ -12,11 +12,12 @@ Y[y][x] = (uint8_t)((x * 3 + y * 5 + seed * 37) & 0xff);
 ```
 
 Allocate a direct-WSS context for 1920x1080 progressive video and query the
-geometry:
+geometry or flattened sampler plan:
 
 ```c
 klsmpte2064_context_alloc_wss_luma(&hdl, 1, 1920, 1080);
 klsmpte2064_video_get_wss_geometry(hdl, &geometry);
+klsmpte2064_video_get_wss_sampler_plan(hdl, &plan);
 ```
 
 The current geometry is:
@@ -50,3 +51,14 @@ fingerprint.video_fingerprint == 234
 
 The unit test `GPU sampler reference vector 1920x1080` validates this full
 block, not only the representative values shown above.
+
+Applications can also ask the library to generate the expected block directly:
+
+```c
+struct klsmpte2064_video_wss_conformance_vector vector;
+
+klsmpte2064_video_make_wss_conformance_vector(hdl, seed, &vector);
+```
+
+`vector.samples` contains the expected 960-byte output, while
+`vector.sample_sum` and `vector.sample_xor` provide quick diagnostics.

@@ -1,7 +1,7 @@
 # Integration Guide
 
-This page summarizes the integration path intended for GPU-native applications
-such as GPU-native video applications.
+This page summarizes the integration path intended for GPU-native video
+applications.
 
 ## Threading
 
@@ -30,8 +30,7 @@ if (!klsmpte2064_capabilities_satisfy(
 ```
 
 Build systems can check the package version and inspect the GPU direct-WSS
-integration
-capability mask through `pkg-config`:
+integration capability mask through `pkg-config`:
 
 ```sh
 pkg-config --atleast-version=1.0 libklsmpte2064
@@ -53,8 +52,10 @@ extracts exactly the SMPTE 2064 windowed and prefiltered 16 by 60 luma sample
 block, then submits that block to the library.
 
 ```c
-void *hdl = NULL;
+klsmpte2064_context *hdl = NULL;
 struct klsmpte2064_video_wss_geometry geometry;
+struct klsmpte2064_video_wss_sampler_plan plan;
+struct klsmpte2064_video_push_result result;
 uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW];
 
 if (klsmpte2064_context_alloc_wss_luma(&hdl, 1, width, height) < 0) {
@@ -65,14 +66,18 @@ if (klsmpte2064_video_get_wss_geometry(hdl, &geometry) < 0) {
     /* Should not fail for a valid context. */
 }
 
+if (klsmpte2064_video_get_wss_sampler_plan(hdl, &plan) < 0) {
+    /* Should not fail for a valid context. */
+}
+
 /*
  * Production GPU path:
- *   Use geometry.rows, geometry.columns, and geometry.prefilter_offsets to
- *   sample the decoded luma plane directly on the GPU. Average only valid taps
- *   and write the resulting 16x60 8-bit luma block into samples.
+ *   Copy plan to a GPU buffer. For each plan.samples[i], average
+ *   plan.taps[tap_start .. tap_start + tap_count) from the decoded luma plane
+ *   and write the result to samples[i / 60][i % 60].
  */
 
-klsmpte2064_video_push_wss_luma(hdl, samples);
+klsmpte2064_video_push_wss_luma_result(hdl, samples, &result);
 ```
 
 ## 1920x1080 Sampling Example
@@ -141,10 +146,29 @@ After the block is filled, the application submits it:
 klsmpte2064_video_push_wss_luma(hdl, samples);
 ```
 
-For GPU pipelines, the same mapping can be implemented in a compute kernel: the geometry
-arrays are copied once for the source format, the kernel reads the luma texture
-at those coordinates, writes the 960 averaged 8-bit values into `samples`, and
-the CPU passes that compact block to libklsmpte2064.
+For GPU pipelines, prefer the flattened sampler plan:
+
+```c
+for (uint32_t i = 0; i < plan.sample_count; i++) {
+    const struct klsmpte2064_video_wss_sample_plan_entry *entry =
+        &plan.samples[i];
+    uint32_t sum = 0;
+
+    for (uint32_t t = 0; t < entry->tap_count; t++) {
+        const struct klsmpte2064_video_wss_sampler_tap *tap =
+            &plan.taps[entry->tap_start + t];
+
+        sum += source_luma[tap->y][tap->x];
+    }
+
+    samples[i / KLSMPTE2064_WSS_SAMPLES_PER_ROW]
+           [i % KLSMPTE2064_WSS_SAMPLES_PER_ROW] =
+        (uint8_t)(sum / entry->tap_count);
+}
+```
+
+The plan contains only valid absolute luma coordinates for the configured
+source dimensions, so GPU kernels do not need per-tap edge checks.
 
 Use `docs/GPU-SAMPLER-TEST-VECTORS.md` to validate a GPU sampler against a
 deterministic 1920x1080 luma surface before connecting it to decoded frames.
@@ -154,9 +178,12 @@ deterministic 1920x1080 luma surface before connecting it to decoded frames.
 After successful context allocation, these calls perform no dynamic allocation:
 
 - `klsmpte2064_video_get_wss_geometry`
+- `klsmpte2064_video_get_wss_sampler_plan`
 - `klsmpte2064_video_extract_wss_luma_yuv420p`
 - `klsmpte2064_video_extract_wss_luma_v210`
 - `klsmpte2064_video_push_wss_luma`
+- `klsmpte2064_video_push_wss_luma_result`
+- `klsmpte2064_video_make_wss_conformance_vector`
 - `klsmpte2064_context_status`
 - `klsmpte2064_fingerprint_get`
 - `klsmpte2064_encapsulation_set_metadata`
@@ -198,13 +225,20 @@ struct klsmpte2064_encapsulation_metadata metadata = {0};
 
 metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_60;
 metadata.id_present = 1;
-metadata.id_length = 4;
-metadata.id_data[0] = 'I';
-metadata.id_data[1] = 'R';
-metadata.id_data[2] = 'I';
-metadata.id_data[3] = 'S';
+metadata.id_length = 3;
+metadata.id_data[0] = 'G';
+metadata.id_data[1] = 'P';
+metadata.id_data[2] = 'U';
 
 klsmpte2064_encapsulation_set_metadata(hdl, &metadata);
+```
+
+The picture-rate code can be derived from a frame-duration timebase:
+
+```c
+klsmpte2064_picture_rate_from_timebase(1001,
+                                       60000,
+                                       &metadata.picture_rate);
 ```
 
 Set `id_present` to zero to omit the ID sub-container. Metadata set/get calls
@@ -243,6 +277,18 @@ if (klsmpte2064_fingerprint_get(hdl, &fp) == 0 && fp.status.video_ready) {
 ```
 
 Status and raw fingerprint queries perform no dynamic allocation.
+
+For the direct-WSS hot path, callers can push a sample block and collect the
+post-push state with one call:
+
+```c
+struct klsmpte2064_video_push_result result;
+
+if (klsmpte2064_video_push_wss_luma_result(hdl, samples, &result) == 0 &&
+    result.status.pack_ready) {
+    klsmpte2064_encapsulation_pack(hdl, section, sizeof(section), &used);
+}
+```
 
 ## CPU Reference Extractors
 
@@ -290,6 +336,10 @@ Public functions are marked with `KLSMPTE2064_API` from
 so consumers should treat declarations in installed `libklsmpte2064/*.h`
 headers as the supported ABI surface. Internal helpers, private structs, and
 test-only symbols are not part of the compatibility contract.
+
+Context handles use the opaque `klsmpte2064_context` typedef. New extensible
+output structs include `size` and `version` fields; the library writes
+`sizeof(struct)` and `KLSMPTE2064_STRUCT_VERSION_1` when filling them.
 
 Applications should include the umbrella header unless they need a narrower
 compile boundary:

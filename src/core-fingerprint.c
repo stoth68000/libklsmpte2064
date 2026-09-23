@@ -4,7 +4,7 @@
 
 #include <string.h>
 
-static void fill_status(struct ctx_s *ctx,
+void klsmpte2064_context_fill_status(struct ctx_s *ctx,
 	struct klsmpte2064_context_status *status)
 {
 	memset(status, 0, sizeof(*status));
@@ -23,7 +23,7 @@ static void fill_status(struct ctx_s *ctx,
 	}
 }
 
-int klsmpte2064_context_status(void *hdl,
+int klsmpte2064_context_status(klsmpte2064_context *hdl,
 	struct klsmpte2064_context_status *status)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -31,11 +31,11 @@ int klsmpte2064_context_status(void *hdl,
 		return -EINVAL;
 	}
 
-	fill_status(ctx, status);
+	klsmpte2064_context_fill_status(ctx, status);
 	return 0;
 }
 
-int klsmpte2064_fingerprint_get(void *hdl,
+int klsmpte2064_fingerprint_get(klsmpte2064_context *hdl,
 	struct klsmpte2064_fingerprint *fingerprint)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -44,7 +44,7 @@ int klsmpte2064_fingerprint_get(void *hdl,
 	}
 
 	memset(fingerprint, 0, sizeof(*fingerprint));
-	fill_status(ctx, &fingerprint->status);
+	klsmpte2064_context_fill_status(ctx, &fingerprint->status);
 	fingerprint->video_fingerprint = ctx->video_fingerprint_data_f4;
 
 	for (int i = AUDIOTYPE_UNDEFINED + 1; i < AUDIOTYPE_MAX; i++) {

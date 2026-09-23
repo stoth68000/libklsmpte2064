@@ -16,9 +16,12 @@ GPU-native integrations.
 - Progressive video fingerprinting for supported SMPTE 2064 geometry tables.
 - CPU frame input for 8-bit YUV420P luma and packed 10-bit V210.
 - Direct 16x60 windowed-subsampled luma input for GPU pipelines.
-- Geometry queries that tell applications exactly which source luma pixels to
-  sample.
+- Geometry and flattened sampler-plan queries that tell applications exactly
+  which source luma pixels to sample.
 - CPU reference extractors for validating GPU samplers.
+- Deterministic WSS conformance vectors for validating accelerated samplers.
+- Push-result APIs that return per-frame readiness and fingerprint state in
+  the same call that submits GPU-extracted samples.
 - Audio fingerprinting for:
   - stereo signed 16-bit planar 48 kHz audio,
   - DeckLink-style 16-channel interleaved S32 stereo,
@@ -35,22 +38,23 @@ Interlaced video is not currently supported by the public allocation APIs.
 
 ## GPU-Style Direct WSS Flow
 
-The direct-WSS path is the preferred integration route for GPU based application. Instead of
-bringing a full decoded luma frame back to the CPU, the application queries the
-sampling geometry once, uses the GPU to extract only the required luma taps,
-and pushes the resulting 16x60 8-bit sample block.
+The direct-WSS path is the preferred integration route for GPU-based
+applications. Instead of bringing a full decoded luma frame back to the CPU, the
+application queries the sampler plan once, uses the GPU to extract only the
+required luma taps, and pushes the resulting 16x60 8-bit sample block.
 
 ```c
-void *hdl = NULL;
-struct klsmpte2064_video_wss_geometry geometry;
+klsmpte2064_context *hdl = NULL;
+struct klsmpte2064_video_wss_sampler_plan plan;
+struct klsmpte2064_video_push_result result;
 uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW];
 
 klsmpte2064_context_alloc_wss_luma(&hdl, 1, width, height);
-klsmpte2064_video_get_wss_geometry(hdl, &geometry);
+klsmpte2064_video_get_wss_sampler_plan(hdl, &plan);
 
-/* GPU or CPU fills samples[r][c] from geometry.rows/columns/taps. */
+/* GPU fills samples[r][c] by averaging the absolute luma taps in plan. */
 
-klsmpte2064_video_push_wss_luma(hdl, samples);
+klsmpte2064_video_push_wss_luma_result(hdl, samples, &result);
 ```
 
 See `docs/INTEGRATION.md` for the complete integration flow and
@@ -63,9 +67,12 @@ After context allocation, these GPU integration calls perform no dynamic
 allocation:
 
 - `klsmpte2064_video_get_wss_geometry`
+- `klsmpte2064_video_get_wss_sampler_plan`
 - `klsmpte2064_video_extract_wss_luma_yuv420p`
 - `klsmpte2064_video_extract_wss_luma_v210`
 - `klsmpte2064_video_push_wss_luma`
+- `klsmpte2064_video_push_wss_luma_result`
+- `klsmpte2064_video_make_wss_conformance_vector`
 - `klsmpte2064_context_status`
 - `klsmpte2064_fingerprint_get`
 - `klsmpte2064_encapsulation_set_metadata`

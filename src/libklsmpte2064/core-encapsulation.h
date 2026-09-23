@@ -13,6 +13,7 @@
 #include <sys/errno.h>
 
 #include <libklsmpte2064/export.h>
+#include <libklsmpte2064/core.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,24 @@ enum klsmpte2064_picture_rate_e
 	KLSMPTE2064_PICTURE_RATE_5994 = 0x7,
 	KLSMPTE2064_PICTURE_RATE_60 = 0x8,
 };
+
+/**
+ * @brief Map a video frame timebase to a SMPTE 2064 picture-rate code.
+ *
+ * The helper accepts common frame-duration timebases such as 1001/60000 for
+ * 59.94 fps and 1/60 for 60 fps.
+ *
+ * @param[in] timebase_num Frame-duration numerator.
+ * @param[in] timebase_den Frame-duration denominator.
+ * @param[out] picture_rate Receives enum klsmpte2064_picture_rate_e.
+ * @return 0 on success.
+ * @return -EINVAL when picture_rate is NULL or the timebase is zero.
+ * @return -ENOTSUP when the timebase has no SMPTE 2064 picture-rate code.
+ */
+KLSMPTE2064_API int klsmpte2064_picture_rate_from_timebase(
+	uint32_t timebase_num,
+	uint32_t timebase_den,
+	uint8_t *picture_rate);
 
 /**
  * @brief Metadata written into encapsulated fingerprint sections.
@@ -58,7 +77,7 @@ struct klsmpte2064_encapsulation_metadata {
  *
  * This function performs no dynamic allocation.
  */
-KLSMPTE2064_API int klsmpte2064_encapsulation_set_metadata(void *hdl,
+KLSMPTE2064_API int klsmpte2064_encapsulation_set_metadata(klsmpte2064_context *hdl,
 	const struct klsmpte2064_encapsulation_metadata *metadata);
 
 /**
@@ -71,7 +90,7 @@ KLSMPTE2064_API int klsmpte2064_encapsulation_set_metadata(void *hdl,
  *
  * This function performs no dynamic allocation.
  */
-KLSMPTE2064_API int klsmpte2064_encapsulation_get_metadata(void *hdl,
+KLSMPTE2064_API int klsmpte2064_encapsulation_get_metadata(klsmpte2064_context *hdl,
 	struct klsmpte2064_encapsulation_metadata *metadata);
 
 /**
@@ -87,7 +106,7 @@ KLSMPTE2064_API int klsmpte2064_encapsulation_get_metadata(void *hdl,
  * This function writes into caller-supplied storage and performs no dynamic
  * allocation.
  */
-KLSMPTE2064_API int klsmpte2064_encapsulation_pack(void *hdl,
+KLSMPTE2064_API int klsmpte2064_encapsulation_pack(klsmpte2064_context *hdl,
 	uint8_t *data,
 	uint32_t len,
 	uint32_t *usedLength);

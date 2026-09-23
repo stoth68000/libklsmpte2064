@@ -111,6 +111,8 @@ struct ctx_s
 
 int klsmpte2064_audio_alloc(struct ctx_s *ctx);
 void klsmpte2064_audio_free(struct ctx_s *ctx);
+void klsmpte2064_context_fill_status(struct ctx_s *ctx,
+	struct klsmpte2064_context_status *status);
 
 void *klsmpte2064_malloc(size_t size);
 void *klsmpte2064_calloc(size_t count, size_t size);

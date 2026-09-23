@@ -13,6 +13,8 @@
 #include <sys/errno.h>
 
 #include <libklsmpte2064/export.h>
+#include <libklsmpte2064/core.h>
+#include <libklsmpte2064/core-fingerprint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +29,10 @@ extern "C" {
 	(KLSMPTE2064_WSS_ROWS * KLSMPTE2064_WSS_SAMPLES_PER_ROW)
 /** Maximum number of horizontal luma taps in the SMPTE 2064 prefilter. */
 #define KLSMPTE2064_VIDEO_PREFILTER_MAX_TAPS 6
+/** Maximum number of flattened sampler-plan taps per frame. */
+#define KLSMPTE2064_WSS_SAMPLER_PLAN_MAX_TAPS \
+	(KLSMPTE2064_WSS_SAMPLES_PER_FRAME * \
+	 KLSMPTE2064_VIDEO_PREFILTER_MAX_TAPS)
 
 /**
  * @brief SMPTE 2064 window and prefilter geometry for external sampling.
@@ -56,6 +62,86 @@ struct klsmpte2064_video_wss_geometry {
 	int rows[KLSMPTE2064_WSS_ROWS]; /**< Absolute source luma Y coordinates. */
 	int columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /**< Absolute source luma X coordinates. */
 	int prefilter_offsets[KLSMPTE2064_VIDEO_PREFILTER_MAX_TAPS]; /**< Horizontal X offsets added to each columns[c]. */
+};
+
+/**
+ * @brief One output sample in a flattened WSS sampler plan.
+ *
+ * The sample maps to samples[sample_index / 60][sample_index % 60]. A GPU
+ * kernel reads tap_count entries starting at tap_start in
+ * klsmpte2064_video_wss_sampler_plan::taps, averages those source coordinates,
+ * and writes one 8-bit luma value to the matching output sample index.
+ */
+struct klsmpte2064_video_wss_sample_plan_entry {
+	uint16_t sample_index; /**< Flattened 0..959 output sample index. */
+	uint16_t tap_start; /**< First tap index in the plan taps[] array. */
+	uint16_t tap_count; /**< Number of valid taps to average. */
+	uint16_t reserved; /**< Reserved, written as zero. */
+};
+
+/** Absolute luma coordinate to read for one sampler-plan tap. */
+struct klsmpte2064_video_wss_sampler_tap {
+	int32_t x; /**< Absolute source luma X coordinate. */
+	int32_t y; /**< Absolute source luma Y coordinate. */
+};
+
+/**
+ * @brief GPU-ready flattened WSS sampler plan.
+ *
+ * This is a direct translation of klsmpte2064_video_wss_geometry into fixed
+ * arrays that can be copied to a GPU buffer. The plan includes only valid taps,
+ * so kernels do not need bounds checks for the configured source dimensions.
+ *
+ * The library fills size and version on output. Callers should zero-initialize
+ * the struct before first use.
+ */
+struct klsmpte2064_video_wss_sampler_plan {
+	uint32_t size; /**< sizeof(struct klsmpte2064_video_wss_sampler_plan). */
+	uint32_t version; /**< KLSMPTE2064_STRUCT_VERSION_1. */
+	uint32_t sample_count; /**< Number of valid entries in samples[]. */
+	uint32_t tap_count; /**< Number of valid entries in taps[]. */
+	uint32_t max_taps_per_sample; /**< Maximum tap_count for any one sample. */
+	uint32_t reserved; /**< Reserved, written as zero. */
+	/** Per-output-sample entries. Only sample_count entries are valid. */
+	struct klsmpte2064_video_wss_sample_plan_entry
+		samples[KLSMPTE2064_WSS_SAMPLES_PER_FRAME];
+	/** Absolute source taps. Only tap_count entries are valid. */
+	struct klsmpte2064_video_wss_sampler_tap
+		taps[KLSMPTE2064_WSS_SAMPLER_PLAN_MAX_TAPS];
+};
+
+/**
+ * @brief Result returned by klsmpte2064_video_push_wss_luma_result().
+ *
+ * This combines the per-frame push with the state that realtime integrations
+ * commonly query immediately afterward.
+ */
+struct klsmpte2064_video_push_result {
+	uint32_t size; /**< sizeof(struct klsmpte2064_video_push_result). */
+	uint32_t version; /**< KLSMPTE2064_STRUCT_VERSION_1. */
+	struct klsmpte2064_context_status status; /**< Context status after push. */
+	uint8_t video_fingerprint; /**< Current video fingerprint byte. */
+	uint8_t reserved[7]; /**< Reserved, written as zero. */
+};
+
+/**
+ * @brief Deterministic WSS conformance vector for sampler validation.
+ *
+ * The generated samples use the same deterministic luma pattern as the test
+ * suite: Y = (x * 3 + y * 5 + seed * 37) & 0xff. GPU samplers can compare
+ * their 960-byte output against samples[] for a supported source geometry.
+ */
+struct klsmpte2064_video_wss_conformance_vector {
+	uint32_t size; /**< sizeof(struct klsmpte2064_video_wss_conformance_vector). */
+	uint32_t version; /**< KLSMPTE2064_STRUCT_VERSION_1. */
+	uint32_t width; /**< Source width used by this vector. */
+	uint32_t height; /**< Source height used by this vector. */
+	uint8_t seed; /**< Deterministic source-pattern seed. */
+	uint8_t sample_xor; /**< XOR of all samples for quick checks. */
+	uint16_t reserved; /**< Reserved, written as zero. */
+	uint32_t sample_sum; /**< Sum of all samples for quick checks. */
+	uint8_t samples[KLSMPTE2064_WSS_ROWS]
+		[KLSMPTE2064_WSS_SAMPLES_PER_ROW]; /**< Expected 960-byte block. */
 };
 
 /**
@@ -103,7 +189,8 @@ KLSMPTE2064_API int klsmpte2064_video_wss_luma_format_supported(
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-KLSMPTE2064_API int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
+KLSMPTE2064_API int klsmpte2064_video_push(klsmpte2064_context *hdl,
+	const uint8_t *lumaplane);
 
 /**
  * @brief	    Query the SMPTE 2064 sampling geometry for a context.
@@ -130,8 +217,26 @@ KLSMPTE2064_API int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane);
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-KLSMPTE2064_API int klsmpte2064_video_get_wss_geometry(void *hdl,
+KLSMPTE2064_API int klsmpte2064_video_get_wss_geometry(klsmpte2064_context *hdl,
 	struct klsmpte2064_video_wss_geometry *geometry);
+
+/**
+ * @brief Query a flattened, GPU-ready WSS sampler plan.
+ *
+ * The plan describes exactly how to produce the 16 by 60 sample block accepted
+ * by klsmpte2064_video_push_wss_luma(). Each sample entry points to one or more
+ * absolute luma taps to average.
+ *
+ * This function performs no dynamic allocation.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[out] plan Destination for the sampler plan.
+ * @return 0 on success.
+ * @return -EINVAL when hdl or plan is NULL.
+ */
+KLSMPTE2064_API int klsmpte2064_video_get_wss_sampler_plan(
+	klsmpte2064_context *hdl,
+	struct klsmpte2064_video_wss_sampler_plan *plan);
 
 /**
  * @brief Extract windowed luma samples from an 8-bit YUV420P luma plane.
@@ -210,8 +315,45 @@ KLSMPTE2064_API int klsmpte2064_video_extract_wss_luma_v210(
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-KLSMPTE2064_API int klsmpte2064_video_push_wss_luma(void *hdl,
+KLSMPTE2064_API int klsmpte2064_video_push_wss_luma(klsmpte2064_context *hdl,
 	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW]);
+
+/**
+ * @brief Push prefiltered WSS luma samples and return current fingerprint state.
+ *
+ * This is equivalent to klsmpte2064_video_push_wss_luma() followed by status
+ * and raw video fingerprint queries, but it does the common realtime path in a
+ * single call. The result is filled only when the push succeeds.
+ * This function performs no dynamic allocation.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[in] samples Prefiltered 8-bit luma samples arranged as [16][60].
+ * @param[out] result Destination for the post-push result.
+ * @return 0 on success.
+ * @return -EINVAL when hdl, samples, or result is NULL.
+ */
+KLSMPTE2064_API int klsmpte2064_video_push_wss_luma_result(
+	klsmpte2064_context *hdl,
+	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW],
+	struct klsmpte2064_video_push_result *result);
+
+/**
+ * @brief Build a deterministic WSS conformance vector for sampler validation.
+ *
+ * The vector is generated from the current context geometry without dynamic
+ * allocation and is intended for tests that compare a GPU sampler against the
+ * library's reference math.
+ *
+ * @param[in] hdl A previously allocated context handle.
+ * @param[in] seed Deterministic source-pattern seed.
+ * @param[out] vector Destination for expected samples and quick checks.
+ * @return 0 on success.
+ * @return -EINVAL when hdl or vector is NULL.
+ */
+KLSMPTE2064_API int klsmpte2064_video_make_wss_conformance_vector(
+	klsmpte2064_context *hdl,
+	uint8_t seed,
+	struct klsmpte2064_video_wss_conformance_vector *vector);
 
 /**
  * @brief Reset video motion history and video fingerprint state.
@@ -228,7 +370,7 @@ KLSMPTE2064_API int klsmpte2064_video_push_wss_luma(void *hdl,
  *
  * Threading: calls on the same context must be serialized by the caller.
  */
-KLSMPTE2064_API int klsmpte2064_video_reset(void *hdl);
+KLSMPTE2064_API int klsmpte2064_video_reset(klsmpte2064_context *hdl);
 
 #ifdef __cplusplus
 };

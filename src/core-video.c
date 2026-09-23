@@ -13,6 +13,7 @@ static int _video_window_compute_motion(struct ctx_s *ctx);
 static void _video_window_rotate(struct ctx_s *ctx);
 static int geometry_is_valid(const struct klsmpte2064_video_wss_geometry *geometry);
 static uint8_t v210_luma_sample_8b(const uint8_t *line, uint32_t x);
+static uint8_t conformance_luma_sample(int x, int y, uint8_t seed);
 
 /* Table 1 - Video Format Prefilter */
 struct tbl1_s tbl1[] = {
@@ -164,7 +165,7 @@ int _video_push_v210(struct ctx_s *ctx, const uint8_t *lumaplane)
 	return _video_push_yuv420p(ctx, ctx->y_csc, ctx->ystride);
 }
 
-int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
+int klsmpte2064_video_push(klsmpte2064_context *hdl, const uint8_t *lumaplane)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx || !lumaplane) {
@@ -184,7 +185,7 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	return -1;
 }
 
-int klsmpte2064_video_get_wss_geometry(void *hdl,
+int klsmpte2064_video_get_wss_geometry(klsmpte2064_context *hdl,
 	struct klsmpte2064_video_wss_geometry *geometry)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -210,6 +211,67 @@ int klsmpte2064_video_get_wss_geometry(void *hdl,
 	for (int c = 0; c < KLSMPTE2064_WSS_SAMPLES_PER_ROW; c++) {
 		geometry->columns[c] = gridh;
 		gridh += ctx->t2->hstep;
+	}
+
+	return 0;
+}
+
+int klsmpte2064_video_get_wss_sampler_plan(klsmpte2064_context *hdl,
+	struct klsmpte2064_video_wss_sampler_plan *plan)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	struct klsmpte2064_video_wss_geometry geometry = {0};
+
+	if (!ctx || !plan) {
+		return -EINVAL;
+	}
+	if (klsmpte2064_video_get_wss_geometry(hdl, &geometry) < 0) {
+		return -EINVAL;
+	}
+
+	memset(plan, 0, sizeof(*plan));
+	plan->size = sizeof(*plan);
+	plan->version = KLSMPTE2064_STRUCT_VERSION_1;
+	plan->sample_count = KLSMPTE2064_WSS_SAMPLES_PER_FRAME;
+	plan->max_taps_per_sample = geometry.prefilter_tap_count ?
+		geometry.prefilter_tap_count : 1;
+
+	for (uint32_t r = 0; r < geometry.row_count; r++) {
+		for (uint32_t c = 0; c < geometry.samples_per_row; c++) {
+			const uint32_t sample_index =
+				(r * geometry.samples_per_row) + c;
+			struct klsmpte2064_video_wss_sample_plan_entry *entry =
+				&plan->samples[sample_index];
+
+			entry->sample_index = (uint16_t)sample_index;
+			entry->tap_start = (uint16_t)plan->tap_count;
+
+			if (geometry.prefilter_tap_count == 0) {
+				struct klsmpte2064_video_wss_sampler_tap *tap =
+					&plan->taps[plan->tap_count++];
+				tap->x = geometry.columns[c];
+				tap->y = geometry.rows[r];
+				entry->tap_count = 1;
+				continue;
+			}
+
+			for (uint32_t t = 0; t < geometry.prefilter_tap_count; t++) {
+				const int x = geometry.columns[c] +
+					geometry.prefilter_offsets[t];
+				if (x < 0 || x >= (int)ctx->width) {
+					continue;
+				}
+
+				struct klsmpte2064_video_wss_sampler_tap *tap =
+					&plan->taps[plan->tap_count++];
+				tap->x = x;
+				tap->y = geometry.rows[r];
+				entry->tap_count++;
+			}
+			if (!entry->tap_count) {
+				return -EINVAL;
+			}
+		}
 	}
 
 	return 0;
@@ -296,7 +358,7 @@ int klsmpte2064_video_extract_wss_luma_v210(
 	return 0;
 }
 
-int klsmpte2064_video_push_wss_luma(void *hdl,
+int klsmpte2064_video_push_wss_luma(klsmpte2064_context *hdl,
 	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
@@ -312,7 +374,73 @@ int klsmpte2064_video_push_wss_luma(void *hdl,
 	return _video_window_compute_motion(ctx);
 }
 
-int klsmpte2064_video_reset(void *hdl)
+int klsmpte2064_video_push_wss_luma_result(klsmpte2064_context *hdl,
+	const uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW],
+	struct klsmpte2064_video_push_result *result)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	int ret = 0;
+
+	if (!ctx || !samples || !result) {
+		return -EINVAL;
+	}
+
+	ret = klsmpte2064_video_push_wss_luma(hdl, samples);
+	if (ret < 0) {
+		return ret;
+	}
+
+	memset(result, 0, sizeof(*result));
+	result->size = sizeof(*result);
+	result->version = KLSMPTE2064_STRUCT_VERSION_1;
+	klsmpte2064_context_fill_status(ctx, &result->status);
+	result->video_fingerprint = ctx->video_fingerprint_data_f4;
+	return 0;
+}
+
+int klsmpte2064_video_make_wss_conformance_vector(klsmpte2064_context *hdl,
+	uint8_t seed,
+	struct klsmpte2064_video_wss_conformance_vector *vector)
+{
+	struct ctx_s *ctx = (struct ctx_s *)hdl;
+	struct klsmpte2064_video_wss_sampler_plan plan = {0};
+
+	if (!ctx || !vector) {
+		return -EINVAL;
+	}
+	if (klsmpte2064_video_get_wss_sampler_plan(hdl, &plan) < 0) {
+		return -EINVAL;
+	}
+
+	memset(vector, 0, sizeof(*vector));
+	vector->size = sizeof(*vector);
+	vector->version = KLSMPTE2064_STRUCT_VERSION_1;
+	vector->width = ctx->width;
+	vector->height = ctx->height;
+	vector->seed = seed;
+
+	for (uint32_t i = 0; i < plan.sample_count; i++) {
+		const struct klsmpte2064_video_wss_sample_plan_entry *entry =
+			&plan.samples[i];
+		int sum = 0;
+
+		for (uint32_t t = 0; t < entry->tap_count; t++) {
+			const struct klsmpte2064_video_wss_sampler_tap *tap =
+				&plan.taps[entry->tap_start + t];
+			sum += conformance_luma_sample(tap->x, tap->y, seed);
+		}
+
+		const uint8_t sample = (uint8_t)(sum / entry->tap_count);
+		vector->samples[i / KLSMPTE2064_WSS_SAMPLES_PER_ROW]
+			[i % KLSMPTE2064_WSS_SAMPLES_PER_ROW] = sample;
+		vector->sample_sum += sample;
+		vector->sample_xor ^= sample;
+	}
+
+	return 0;
+}
+
+int klsmpte2064_video_reset(klsmpte2064_context *hdl)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx) {
@@ -381,6 +509,11 @@ static uint8_t v210_luma_sample_8b(const uint8_t *line, uint32_t x)
 	}
 
 	return (uint8_t)(sample >> 2);
+}
+
+static uint8_t conformance_luma_sample(int x, int y, uint8_t seed)
+{
+	return (uint8_t)((x * 3 + y * 5 + seed * 37) & 0xff);
 }
 
 /* Copy the luma rows that feed the fingerprint into our context and apply the

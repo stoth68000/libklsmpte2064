@@ -59,7 +59,7 @@ int main(void)
 		PACK_ITERATIONS = 100000,
 		EXTRACT_ITERATIONS = 10000,
 	};
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_video_wss_geometry geometry = {0};
 	struct klsmpte2064_context_status status = {0};
 	struct klsmpte2064_fingerprint fingerprint = {0};

@@ -129,7 +129,7 @@ static int expect_bytes(const uint8_t *expected,
 	return 0;
 }
 
-static int alloc_context(void **hdl,
+static int alloc_context(klsmpte2064_context **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t width,
 	uint32_t height,
@@ -145,17 +145,17 @@ static int alloc_context(void **hdl,
 		bitdepth);
 }
 
-static int alloc_yuv_context(void **hdl)
+static int alloc_yuv_context(klsmpte2064_context **hdl)
 {
 	return alloc_context(hdl, COLORSPACE_YUV420P, 1280, 720, 1280, 8);
 }
 
-static int alloc_wss_context(void **hdl)
+static int alloc_wss_context(klsmpte2064_context **hdl)
 {
 	return klsmpte2064_context_alloc_wss_luma(hdl, 1, 1280, 720);
 }
 
-static int push_three_video_frames(void *hdl,
+static int push_three_video_frames(klsmpte2064_context *hdl,
 	uint8_t *frame,
 	size_t frame_size)
 {
@@ -220,7 +220,7 @@ static void fill_wss_samples(uint8_t samples[KLSMPTE2064_WSS_ROWS]
 	}
 }
 
-static int push_three_wss_sample_frames(void *hdl)
+static int push_three_wss_sample_frames(klsmpte2064_context *hdl)
 {
 	uint8_t samples[KLSMPTE2064_WSS_ROWS]
 		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
@@ -233,7 +233,7 @@ static int push_three_wss_sample_frames(void *hdl)
 	return 0;
 }
 
-static int pack_section(void *hdl,
+static int pack_section(klsmpte2064_context *hdl,
 	uint8_t *section,
 	uint32_t section_size,
 	uint32_t *used_length)
@@ -264,7 +264,7 @@ static int fill_audio_fixture(int16_t *left,
 	return 0;
 }
 
-static int push_all_current_audio_types(void *hdl)
+static int push_all_current_audio_types(klsmpte2064_context *hdl)
 {
 	enum { SAMPLE_COUNT = 800, DECKLINK_CHANNELS = 16 };
 	int16_t left[SAMPLE_COUNT] = {0};
@@ -308,7 +308,7 @@ static int push_all_current_audio_types(void *hdl)
 
 static int test_context_api(void)
 {
-	void *hdl = (void *)0x1;
+	klsmpte2064_context *hdl = (void *)0x1;
 
 	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_context_alloc(NULL,
@@ -448,10 +448,20 @@ static int test_version_capabilities_and_format_probing(void)
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_STATUS_API) != 0);
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_RAW_FINGERPRINT_API) != 0);
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_ENCAPSULATION_METADATA) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_WSS_SAMPLER_PLAN) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_VIDEO_PUSH_RESULT) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_PICTURE_RATE_HELPERS) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS) != 0);
+	EXPECT_TRUE((caps & KLSMPTE2064_CAP_ERROR_STRINGS) != 0);
 	EXPECT_EQ_INT(1,
 		klsmpte2064_capabilities_satisfy(
 			KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES));
 	EXPECT_EQ_INT(0, klsmpte2064_capabilities_satisfy(1u << 31));
+	EXPECT_TRUE(strcmp(klsmpte2064_strerror(0), "success") == 0);
+	EXPECT_TRUE(strcmp(klsmpte2064_strerror(-EINVAL), "invalid argument") == 0);
+	EXPECT_TRUE(strcmp(klsmpte2064_strerror(ENODATA),
+		"not enough fingerprint data") == 0);
+	EXPECT_TRUE(strcmp(klsmpte2064_strerror(-9999), "unknown error") == 0);
 
 	EXPECT_EQ_INT(1,
 		klsmpte2064_video_format_supported(COLORSPACE_YUV420P,
@@ -499,7 +509,7 @@ static int test_version_capabilities_and_format_probing(void)
 
 static int test_yuv420p_golden_video_sections(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	const uint32_t width = 1280;
 	const uint32_t height = 720;
 	const uint32_t stride = width;
@@ -535,7 +545,7 @@ static int test_yuv420p_golden_video_sections(void)
 
 static int test_yuv420p_padded_stride_golden_video_section(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	const uint32_t width = 1280;
 	const uint32_t height = 720;
 	const uint32_t stride = width + 64;
@@ -568,11 +578,12 @@ static int test_yuv420p_padded_stride_golden_video_section(void)
 
 static int test_encapsulation_metadata_api(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_encapsulation_metadata metadata = {0};
 	struct klsmpte2064_encapsulation_metadata current = {0};
 	uint8_t section[256] = {0};
 	uint32_t used_length = 0;
+	uint8_t picture_rate = 0;
 
 	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_encapsulation_get_metadata(NULL, &current));
@@ -591,24 +602,46 @@ static int test_encapsulation_metadata_api(void)
 	EXPECT_EQ_U8('K', current.id_data[0]);
 	EXPECT_EQ_U8('L', current.id_data[1]);
 
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_picture_rate_from_timebase(0,
+			60000,
+			&picture_rate));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_picture_rate_from_timebase(1001,
+			60000,
+			NULL));
+	EXPECT_EQ_INT(-ENOTSUP,
+		klsmpte2064_picture_rate_from_timebase(1,
+			1000,
+			&picture_rate));
+	EXPECT_EQ_INT(KLSMPTE2064_PICTURE_RATE_UNKNOWN, picture_rate);
+	EXPECT_EQ_INT(0,
+		klsmpte2064_picture_rate_from_timebase(1001,
+			60000,
+			&picture_rate));
+	EXPECT_EQ_INT(KLSMPTE2064_PICTURE_RATE_5994, picture_rate);
+	EXPECT_EQ_INT(0,
+		klsmpte2064_picture_rate_from_timebase(1,
+			60,
+			&picture_rate));
+	EXPECT_EQ_INT(KLSMPTE2064_PICTURE_RATE_60, picture_rate);
+
 	metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_60;
 	metadata.id_present = 1;
-	metadata.id_length = 4;
-	metadata.id_data[0] = 'I';
-	metadata.id_data[1] = 'R';
-	metadata.id_data[2] = 'I';
-	metadata.id_data[3] = 'S';
+	metadata.id_length = 3;
+	metadata.id_data[0] = 'G';
+	metadata.id_data[1] = 'P';
+	metadata.id_data[2] = 'U';
 	EXPECT_EQ_INT(0, klsmpte2064_encapsulation_set_metadata(hdl, &metadata));
 	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
 	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
 	EXPECT_TRUE(verify_checksum(section, used_length));
-	EXPECT_EQ_INT(0x0d, section[2]);
+	EXPECT_EQ_INT(0x0c, section[2]);
 	EXPECT_EQ_U8(0x8e, section[3]);
-	EXPECT_EQ_U8(0xe4, section[5]);
-	EXPECT_EQ_U8('I', section[6]);
-	EXPECT_EQ_U8('R', section[7]);
-	EXPECT_EQ_U8('I', section[8]);
-	EXPECT_EQ_U8('S', section[9]);
+	EXPECT_EQ_U8(0xe3, section[5]);
+	EXPECT_EQ_U8('G', section[6]);
+	EXPECT_EQ_U8('P', section[7]);
+	EXPECT_EQ_U8('U', section[8]);
 
 	metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_24;
 	metadata.id_present = 0;
@@ -640,7 +673,7 @@ static int test_encapsulation_metadata_api(void)
 
 static int test_wss_luma_golden_video_sections(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	uint8_t samples[KLSMPTE2064_WSS_ROWS]
 		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
 	uint8_t section[256] = {0};
@@ -675,8 +708,9 @@ static int test_wss_luma_golden_video_sections(void)
 
 static int test_wss_geometry_api(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_video_wss_geometry geometry = {0};
+	struct klsmpte2064_video_wss_sampler_plan plan = {0};
 
 	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_video_get_wss_geometry(NULL, &geometry));
@@ -699,6 +733,25 @@ static int test_wss_geometry_api(void)
 	EXPECT_EQ_INT(1023,
 		geometry.columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW - 1]);
 	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_get_wss_sampler_plan(NULL, &plan));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_get_wss_sampler_plan(hdl, NULL));
+	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_sampler_plan(hdl, &plan));
+	EXPECT_EQ_INT((int)sizeof(plan), (int)plan.size);
+	EXPECT_EQ_INT(KLSMPTE2064_STRUCT_VERSION_1, (int)plan.version);
+	EXPECT_EQ_INT(KLSMPTE2064_WSS_SAMPLES_PER_FRAME,
+		(int)plan.sample_count);
+	EXPECT_EQ_INT(KLSMPTE2064_WSS_SAMPLES_PER_FRAME * 2,
+		(int)plan.tap_count);
+	EXPECT_EQ_INT(2, (int)plan.max_taps_per_sample);
+	EXPECT_EQ_INT(0, (int)plan.samples[0].sample_index);
+	EXPECT_EQ_INT(0, (int)plan.samples[0].tap_start);
+	EXPECT_EQ_INT(2, (int)plan.samples[0].tap_count);
+	EXPECT_EQ_INT(255, plan.taps[0].x);
+	EXPECT_EQ_INT(117, plan.taps[0].y);
+	EXPECT_EQ_INT(256, plan.taps[1].x);
+	EXPECT_EQ_INT(117, plan.taps[1].y);
+	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_video_extract_wss_luma_yuv420p(NULL,
 			(uint8_t *)&geometry,
 			1280,
@@ -719,7 +772,7 @@ static int test_wss_geometry_api(void)
 
 static int test_reset_apis(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	uint8_t frame[1280 * 720] = {0};
 	uint8_t section[256] = {0};
 	uint32_t used_length = 0;
@@ -779,9 +832,12 @@ static int test_reset_apis(void)
 
 static int test_status_and_raw_fingerprint_apis(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_context_status status = {0};
 	struct klsmpte2064_fingerprint fingerprint = {0};
+	struct klsmpte2064_video_push_result push_result = {0};
+	uint8_t samples[KLSMPTE2064_WSS_ROWS]
+		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
 	uint8_t section[256] = {0};
 	uint32_t used_length = 0;
 
@@ -798,7 +854,40 @@ static int test_status_and_raw_fingerprint_apis(void)
 	EXPECT_EQ_INT(0, (int)status.audio_ready_mask);
 	EXPECT_EQ_INT(0, (int)status.sequence_counter);
 
-	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_push_wss_luma_result(NULL,
+			samples,
+			&push_result));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_push_wss_luma_result(hdl,
+			NULL,
+			&push_result));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_push_wss_luma_result(hdl,
+			samples,
+			NULL));
+	fill_wss_samples(samples, 0x00);
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_push_wss_luma_result(hdl,
+			samples,
+			&push_result));
+	EXPECT_EQ_INT((int)sizeof(push_result), (int)push_result.size);
+	EXPECT_EQ_INT(KLSMPTE2064_STRUCT_VERSION_1, (int)push_result.version);
+	EXPECT_EQ_INT(1, (int)push_result.status.video_frames_pushed);
+	EXPECT_EQ_INT(0, (int)push_result.status.video_ready);
+	EXPECT_EQ_INT(0, (int)push_result.video_fingerprint);
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_push_wss_luma_result(hdl,
+			samples,
+			&push_result));
+	fill_wss_samples(samples, 0xff);
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_push_wss_luma_result(hdl,
+			samples,
+			&push_result));
+	EXPECT_EQ_INT(3, (int)push_result.status.video_frames_pushed);
+	EXPECT_EQ_INT(1, (int)push_result.status.video_ready);
+	EXPECT_EQ_INT(240, (int)push_result.video_fingerprint);
 	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
 	EXPECT_EQ_INT(3, (int)status.video_frames_pushed);
 	EXPECT_EQ_INT(1, (int)status.video_ready);
@@ -845,8 +934,8 @@ static int test_wss_luma_matches_yuv420p_for_supported_dimensions(void)
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-		void *yuv_hdl = NULL;
-		void *wss_hdl = NULL;
+		klsmpte2064_context *yuv_hdl = NULL;
+		klsmpte2064_context *wss_hdl = NULL;
 		struct klsmpte2064_video_wss_geometry geometry = {0};
 		uint8_t samples[KLSMPTE2064_WSS_ROWS]
 			[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
@@ -927,8 +1016,8 @@ static int test_wss_luma_matches_v210_for_supported_dimensions(void)
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-		void *v210_hdl = NULL;
-		void *wss_hdl = NULL;
+		klsmpte2064_context *v210_hdl = NULL;
+		klsmpte2064_context *wss_hdl = NULL;
 		struct klsmpte2064_video_wss_geometry geometry = {0};
 		uint8_t samples[KLSMPTE2064_WSS_ROWS]
 			[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
@@ -999,8 +1088,10 @@ static int test_wss_luma_matches_v210_for_supported_dimensions(void)
 
 static int test_gpu_sampler_reference_vector_1920x1080(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_video_wss_geometry geometry = {0};
+	struct klsmpte2064_video_wss_sampler_plan plan = {0};
+	struct klsmpte2064_video_wss_conformance_vector vector = {0};
 	struct klsmpte2064_fingerprint fingerprint = {0};
 	uint8_t samples[KLSMPTE2064_WSS_ROWS]
 		[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
@@ -1020,6 +1111,18 @@ static int test_gpu_sampler_reference_vector_1920x1080(void)
 	EXPECT_EQ_INT(1520,
 		geometry.columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW - 1]);
 	EXPECT_EQ_INT(3, (int)geometry.prefilter_tap_count);
+	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_sampler_plan(hdl, &plan));
+	EXPECT_EQ_INT(KLSMPTE2064_WSS_SAMPLES_PER_FRAME,
+		(int)plan.sample_count);
+	EXPECT_EQ_INT(KLSMPTE2064_WSS_SAMPLES_PER_FRAME * 3,
+		(int)plan.tap_count);
+	EXPECT_EQ_INT(3, (int)plan.samples[0].tap_count);
+	EXPECT_EQ_INT(398, plan.taps[0].x);
+	EXPECT_EQ_INT(178, plan.taps[0].y);
+	EXPECT_EQ_INT(399, plan.taps[1].x);
+	EXPECT_EQ_INT(178, plan.taps[1].y);
+	EXPECT_EQ_INT(400, plan.taps[2].x);
+	EXPECT_EQ_INT(178, plan.taps[2].y);
 
 	fill_luma_pattern(frame, width, height, stride, 1);
 	EXPECT_EQ_INT(0,
@@ -1033,6 +1136,25 @@ static int test_gpu_sampler_reference_vector_1920x1080(void)
 	EXPECT_EQ_U8(127, samples[15][59]);
 	EXPECT_EQ_INT(122431, (int)sample_sum(samples));
 	EXPECT_EQ_U8(87, sample_xor(samples));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_make_wss_conformance_vector(NULL,
+			1,
+			&vector));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_video_make_wss_conformance_vector(hdl,
+			1,
+			NULL));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_make_wss_conformance_vector(hdl,
+			1,
+			&vector));
+	EXPECT_EQ_INT((int)sizeof(vector), (int)vector.size);
+	EXPECT_EQ_INT(KLSMPTE2064_STRUCT_VERSION_1, (int)vector.version);
+	EXPECT_EQ_INT((int)width, (int)vector.width);
+	EXPECT_EQ_INT((int)height, (int)vector.height);
+	EXPECT_EQ_INT(122431, (int)vector.sample_sum);
+	EXPECT_EQ_U8(87, vector.sample_xor);
+	EXPECT_EQ_INT(0, memcmp(samples, vector.samples, sizeof(samples)));
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
 
 	fill_luma_pattern(frame, width, height, stride, 2);
@@ -1073,7 +1195,7 @@ static int test_gpu_sampler_reference_vector_1920x1080(void)
 
 static int test_yuv420p_golden_audio_section(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	const uint32_t width = 1280;
 	const uint32_t height = 720;
 	const uint32_t stride = width;
@@ -1110,7 +1232,7 @@ static int test_yuv420p_golden_audio_section(void)
 
 static int test_video_api_yuv420p_and_encapsulation_validation(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	const uint32_t width = 1280;
 	const uint32_t height = 720;
 	const uint32_t stride = width;
@@ -1182,7 +1304,7 @@ static int test_supported_dimensions(void)
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-		void *hdl = NULL;
+		klsmpte2064_context *hdl = NULL;
 		const uint32_t stride = cases[i].width;
 		const size_t frame_size = (size_t)stride * cases[i].height;
 		uint8_t *frame = calloc(1, frame_size);
@@ -1216,7 +1338,7 @@ static int test_supported_dimensions(void)
 
 static int test_video_api_v210_golden_section(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	const uint32_t width = 1280;
 	const uint32_t height = 720;
 	const uint32_t stride = width * 8 / 3;
@@ -1250,7 +1372,7 @@ static int test_video_api_v210_golden_section(void)
 
 static int test_audio_api_current_use_cases_and_edges(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	enum { SAMPLE_COUNT = 800, LARGE_SAMPLE_COUNT = 2300, DECKLINK_CHANNELS = 16 };
 	int16_t left[LARGE_SAMPLE_COUNT] = {0};
 	int16_t right[LARGE_SAMPLE_COUNT] = {0};
@@ -1371,7 +1493,7 @@ static int test_audio_api_current_use_cases_and_edges(void)
 
 static int test_public_api_negative_matrix(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_video_wss_geometry geometry = {0};
 	struct klsmpte2064_video_wss_geometry bad_geometry = {0};
 	uint8_t samples[KLSMPTE2064_WSS_ROWS]
@@ -1519,8 +1641,11 @@ static int test_csc_api(void)
 
 static int test_hot_path_no_allocations(void)
 {
-	void *hdl = NULL;
+	klsmpte2064_context *hdl = NULL;
 	struct klsmpte2064_video_wss_geometry geometry = {0};
+	struct klsmpte2064_video_wss_sampler_plan plan = {0};
+	struct klsmpte2064_video_push_result push_result = {0};
+	struct klsmpte2064_video_wss_conformance_vector vector = {0};
 	struct klsmpte2064_context_status status = {0};
 	struct klsmpte2064_fingerprint fingerprint = {0};
 	struct klsmpte2064_encapsulation_metadata metadata = {0};
@@ -1552,6 +1677,7 @@ static int test_hot_path_no_allocations(void)
 	before = klsmpte2064_test_allocation_count();
 
 	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_geometry(hdl, &geometry));
+	EXPECT_EQ_INT(0, klsmpte2064_video_get_wss_sampler_plan(hdl, &plan));
 	EXPECT_EQ_INT(0,
 		klsmpte2064_video_extract_wss_luma_yuv420p(&geometry,
 			yuv_frame,
@@ -1565,6 +1691,14 @@ static int test_hot_path_no_allocations(void)
 			v210_stride,
 			samples));
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_push_wss_luma_result(hdl,
+			samples,
+			&push_result));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_video_make_wss_conformance_vector(hdl,
+			3,
+			&vector));
 	EXPECT_EQ_INT(0, klsmpte2064_context_status(hdl, &status));
 	EXPECT_EQ_INT(0, klsmpte2064_fingerprint_get(hdl, &fingerprint));
 	metadata.picture_rate = KLSMPTE2064_PICTURE_RATE_5994;

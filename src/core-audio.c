@@ -274,7 +274,7 @@ static int _audio_downmix_stereo(struct ctx_s *ctx,	const int16_t *planes[], uin
 	return 0;
 }
 
-int klsmpte2064_audio_reset(void *hdl, enum klsmpte2064_audio_type_e type)
+int klsmpte2064_audio_reset(klsmpte2064_context *hdl, enum klsmpte2064_audio_type_e type)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx || type <= AUDIOTYPE_UNDEFINED || type >= AUDIOTYPE_MAX) {
@@ -422,7 +422,7 @@ void klsmpte2064_audio_free(struct ctx_s *ctx)
 	}
 }
 
-int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
+int klsmpte2064_audio_push(klsmpte2064_context *hdl, enum klsmpte2064_audio_type_e type,
 	uint32_t timebase_num, uint32_t timebase_den,
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {

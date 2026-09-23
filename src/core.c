@@ -65,7 +65,12 @@ uint32_t klsmpte2064_capabilities(void)
 		KLSMPTE2064_CAP_FORMAT_PROBING |
 		KLSMPTE2064_CAP_STATUS_API |
 		KLSMPTE2064_CAP_RAW_FINGERPRINT_API |
-		KLSMPTE2064_CAP_ENCAPSULATION_METADATA;
+		KLSMPTE2064_CAP_ENCAPSULATION_METADATA |
+		KLSMPTE2064_CAP_WSS_SAMPLER_PLAN |
+		KLSMPTE2064_CAP_VIDEO_PUSH_RESULT |
+		KLSMPTE2064_CAP_PICTURE_RATE_HELPERS |
+		KLSMPTE2064_CAP_WSS_CONFORMANCE_VECTORS |
+		KLSMPTE2064_CAP_ERROR_STRINGS;
 }
 
 int klsmpte2064_capabilities_satisfy(uint32_t required)
@@ -73,7 +78,29 @@ int klsmpte2064_capabilities_satisfy(uint32_t required)
 	return (klsmpte2064_capabilities() & required) == required;
 }
 
-static int context_alloc_common(void **hdl,
+const char *klsmpte2064_strerror(int err)
+{
+	if (err < 0) {
+		err = -err;
+	}
+
+	switch (err) {
+	case 0:
+		return "success";
+	case EINVAL:
+		return "invalid argument";
+	case ENOMEM:
+		return "out of memory";
+	case ENODATA:
+		return "not enough fingerprint data";
+	case ENOTSUP:
+		return "operation not supported";
+	default:
+		return "unknown error";
+	}
+}
+
+static int context_alloc_common(klsmpte2064_context **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
@@ -184,7 +211,7 @@ fail:
 	return ret;
 }
 
-int klsmpte2064_context_alloc(void **hdl,
+int klsmpte2064_context_alloc(klsmpte2064_context **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
@@ -202,7 +229,7 @@ int klsmpte2064_context_alloc(void **hdl,
 		0);
 }
 
-int klsmpte2064_context_alloc_wss_luma(void **hdl,
+int klsmpte2064_context_alloc_wss_luma(klsmpte2064_context **hdl,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height)
@@ -217,7 +244,7 @@ int klsmpte2064_context_alloc_wss_luma(void **hdl,
 		1);
 }
 
-void klsmpte2064_context_free(void *hdl)
+void klsmpte2064_context_free(klsmpte2064_context *hdl)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx) {
@@ -231,7 +258,7 @@ void klsmpte2064_context_free(void *hdl)
 	klsmpte2064_free_internal(ctx);
 }
 
-int klsmpte2064_context_set_verbose(void *hdl, int level)
+int klsmpte2064_context_set_verbose(klsmpte2064_context *hdl, int level)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx) {
@@ -241,7 +268,7 @@ int klsmpte2064_context_set_verbose(void *hdl, int level)
 	return 0;
 }
 
-int klsmpte2064_context_reset(void *hdl)
+int klsmpte2064_context_reset(klsmpte2064_context *hdl)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
 	if (!ctx) {
