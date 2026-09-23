@@ -450,7 +450,7 @@ static int test_version_capabilities_and_format_probing(void)
 	EXPECT_TRUE((caps & KLSMPTE2064_CAP_ENCAPSULATION_METADATA) != 0);
 	EXPECT_EQ_INT(1,
 		klsmpte2064_capabilities_satisfy(
-			KLSMPTE2064_IRIS_DIRECT_WSS_REQUIRED_CAPABILITIES));
+			KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES));
 	EXPECT_EQ_INT(0, klsmpte2064_capabilities_satisfy(1u << 31));
 
 	EXPECT_EQ_INT(1,

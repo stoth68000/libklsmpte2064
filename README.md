@@ -59,7 +59,7 @@ GPU sampler against the CPU reference extractor.
 
 ## Hot Path Behavior
 
-After context allocation, these Iris-relevant calls perform no dynamic
+After context allocation, these GPU integration calls perform no dynamic
 allocation:
 
 - `klsmpte2064_video_get_wss_geometry`
@@ -134,7 +134,7 @@ Applications can check the feature set at runtime:
 
 ```c
 if (!klsmpte2064_capabilities_satisfy(
-        KLSMPTE2064_IRIS_DIRECT_WSS_REQUIRED_CAPABILITIES)) {
+        KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES)) {
     /* Disable direct WSS integration or fail initialization. */
 }
 ```
@@ -143,7 +143,7 @@ Build systems can also check the package version and GPU capability mask:
 
 ```sh
 pkg-config --atleast-version=1.0 libklsmpte2064
-pkg-config --variable=iris_direct_wss_required_capabilities libklsmpte2064
+pkg-config --variable=gpu_direct_wss_required_capabilities libklsmpte2064
 ```
 
 ## License

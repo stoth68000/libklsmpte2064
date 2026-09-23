@@ -106,8 +106,8 @@ extern "C" {
 /** Encapsulation metadata configuration API is available. */
 #define KLSMPTE2064_CAP_ENCAPSULATION_METADATA (1u << 7)
 
-/** Capability set expected by the Iris direct-WSS integration path. */
-#define KLSMPTE2064_IRIS_DIRECT_WSS_REQUIRED_CAPABILITIES \
+/** Capability set expected by the GPU direct-WSS integration path. */
+#define KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES \
 	(KLSMPTE2064_CAP_DIRECT_WSS_LUMA | \
 	 KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P | \
 	 KLSMPTE2064_CAP_WSS_EXTRACT_V210 | \

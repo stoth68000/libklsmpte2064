@@ -1,7 +1,7 @@
 # Integration Guide
 
 This page summarizes the integration path intended for GPU-native applications
-such as Iris.
+such as GPU-native video applications.
 
 ## Threading
 
@@ -24,17 +24,18 @@ uint32_t patch = 0;
 klsmpte2064_version(&major, &minor, &patch);
 
 if (!klsmpte2064_capabilities_satisfy(
-        KLSMPTE2064_IRIS_DIRECT_WSS_REQUIRED_CAPABILITIES)) {
+        KLSMPTE2064_GPU_DIRECT_WSS_REQUIRED_CAPABILITIES)) {
     /* Disable direct WSS integration or fail initialization. */
 }
 ```
 
-Build systems can check the package version and inspect the Iris integration
+Build systems can check the package version and inspect the GPU direct-WSS
+integration
 capability mask through `pkg-config`:
 
 ```sh
 pkg-config --atleast-version=1.0 libklsmpte2064
-pkg-config --variable=iris_direct_wss_required_capabilities libklsmpte2064
+pkg-config --variable=gpu_direct_wss_required_capabilities libklsmpte2064
 ```
 
 Use format probing before allocating a context:
@@ -140,7 +141,7 @@ After the block is filled, the application submits it:
 klsmpte2064_video_push_wss_luma(hdl, samples);
 ```
 
-For Iris, the same mapping can be implemented in a Metal kernel: the geometry
+For GPU pipelines, the same mapping can be implemented in a compute kernel: the geometry
 arrays are copied once for the source format, the kernel reads the luma texture
 at those coordinates, writes the 960 averaged 8-bit values into `samples`, and
 the CPU passes that compact block to libklsmpte2064.
@@ -189,7 +190,7 @@ By default, packed sections preserve the original library behavior:
 - ID sub-container: present
 - ID payload: `KL`
 
-Iris should configure this per source before packing so the section metadata
+Applications should configure this per source before packing so the section metadata
 matches the actual source:
 
 ```c
@@ -228,7 +229,7 @@ has bit `1 << type` set for each audio fingerprint type with current data.
 `status.sequence_counter` is the sequence value that the next pack call will
 write, and `status.motion` is the latest video motion score from 0.0 to 1.0.
 
-For diagnostics, matching, or Iris-internal telemetry that does not need a
+For diagnostics, matching, or application-internal telemetry that does not need a
 packed SMPTE section, callers can fetch the raw fingerprint snapshot:
 
 ```c
