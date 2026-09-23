@@ -7,7 +7,7 @@
  */
 
 /**
- * @mainpage A library to calculate SMPTE2064 audio and video fingerprints
+ * @page api_overview API Overview
  *
  * @section intro_sec Introduction
  *
@@ -70,16 +70,27 @@
 extern "C" {
 #endif
 
-#define KLSMPTE2064_VERSION_MAJOR 1 /**< Major version of the public API. */
-#define KLSMPTE2064_VERSION_MINOR 0 /**< Minor version of the public API. */
-#define KLSMPTE2064_VERSION_PATCH 0 /**< Patch version of the public API. */
+/** Major version of the public API. */
+#define KLSMPTE2064_VERSION_MAJOR 1
+/** Minor version of the public API. */
+#define KLSMPTE2064_VERSION_MINOR 0
+/** Patch version of the public API. */
+#define KLSMPTE2064_VERSION_PATCH 0
 
-#define KLSMPTE2064_CAP_DIRECT_WSS_LUMA (1u << 0) /**< Direct 16x60 WSS luma input is available. */
-#define KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P (1u << 1) /**< YUV420P CPU WSS extractor is available. */
-#define KLSMPTE2064_CAP_WSS_EXTRACT_V210 (1u << 2) /**< V210 CPU WSS extractor is available. */
-#define KLSMPTE2064_CAP_RESET_APIS (1u << 3) /**< Context, audio, and video reset APIs are available. */
-#define KLSMPTE2064_CAP_FORMAT_PROBING (1u << 4) /**< Format support probing APIs are available. */
+/** Direct 16x60 WSS luma input is available. */
+#define KLSMPTE2064_CAP_DIRECT_WSS_LUMA (1u << 0)
+/** YUV420P CPU WSS extractor is available. */
+#define KLSMPTE2064_CAP_WSS_EXTRACT_YUV420P (1u << 1)
+/** V210 CPU WSS extractor is available. */
+#define KLSMPTE2064_CAP_WSS_EXTRACT_V210 (1u << 2)
+/** Context, audio, and video reset APIs are available. */
+#define KLSMPTE2064_CAP_RESET_APIS (1u << 3)
+/** Format support probing APIs are available. */
+#define KLSMPTE2064_CAP_FORMAT_PROBING (1u << 4)
 
+/**
+ * @brief Video input format identifiers.
+ */
 enum klsmpte2064_colorspace_e
 {
 	COLORSPACE_UNDEFINED = 0,
@@ -121,13 +132,13 @@ uint32_t klsmpte2064_capabilities(void);
  *              The library supports all of the colorspace formats listed in the enum, a 8 or 10 bit depth
  *              packing. Most 8 bit codec typically take YUV420P, 8 bit. If you want higher levels of depth
  *              use V210.
- * @param[out]	void ** - handle
- * @param[in]	enum klsmpte2064_colorspace_e - Typically COLORSPACE_YUV420P
- * @param[in]	uint32_t progressive - Boolean. Is the video progressive?
- * @param[in]	uint32_t width - in pixels
- * @param[in]	uint32_t height - in pixels
- * @param[in]	uint32_t stride - Size of each line of video in bytes
- * @param[in]	uint32_t bitdepth - either 8 or 10 only. COLORSPACE_YUV420P is 8, V210 is 10.
+ * @param[out] hdl Receives the allocated context handle.
+ * @param[in] colorspace Typically COLORSPACE_YUV420P or COLORSPACE_V210.
+ * @param[in] progressive Boolean. Currently only progressive video is supported.
+ * @param[in] width Video width in pixels.
+ * @param[in] height Video height in pixels.
+ * @param[in] stride Size of each source video line in bytes.
+ * @param[in] bitdepth Either 8 or 10. COLORSPACE_YUV420P is 8, V210 is 10.
  * @return      0 - Success
  * @return      < 0 - Error
  *
@@ -177,8 +188,8 @@ int klsmpte2064_context_alloc_wss_luma(void **hdl,
 /**
  * @brief	    Raise (1) or lower (0) the overal level of console debug from the library.
  *              The default is zero, no console output under normal operating conditions.
- * @param[in]	void * - A previously allocated content/handle
- * @param[in]	int level - verbosity level (0 or 1).
+ * @param[in] hdl A previously allocated context handle.
+ * @param[in] level Verbosity level, normally 0 or 1.
  * @return      0 - Success
  * @return      < 0 - Error
  */
@@ -199,7 +210,7 @@ int klsmpte2064_context_reset(void *hdl);
 
 /**
  * @brief	    Free a previously allocated handle.
- * @param[in]	void * - A previously allocated content/handle
+ * @param[in] hdl A previously allocated context handle.
  */
 void klsmpte2064_context_free(void *hdl);
 

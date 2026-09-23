@@ -16,6 +16,9 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Supported audio fingerprint input layouts.
+ */
 enum klsmpte2064_audio_type_e
 {
     AUDIOTYPE_UNDEFINED = 0,
@@ -30,13 +33,13 @@ enum klsmpte2064_audio_type_e
  *              Support for 48KHz signed.
  *              Sample count should never technically exceed 2200, it's yypically 800/801
  *              for 59.94 framerate video. The timebase 1001/60000 is important, don't abuse this.
- * @param[in]	void * - A previously allocated content/handle
- * @param[in]	enum klsmpte2064_audio_type_e - Eg. AUDIOTYPE_STEREO_S16P
- * @param[in]	uint32_t timebase_num - Eg. 1 or 1001
- * @param[in]	uint32_t timebase_den - Eg. 60 or 60000
- * @param[in]	const uint16_t **planes - Array of audio planes.
- * @param[in]	uint32_t planeCount - number of planes in array
- * @param[in]	uint32_t samples - (per channel) in the planes. 
+ * @param[in] hdl A previously allocated context handle.
+ * @param[in] type Audio input layout, for example AUDIOTYPE_STEREO_S16P.
+ * @param[in] timebase_num Video timebase numerator, for example 1 or 1001.
+ * @param[in] timebase_den Video timebase denominator, for example 60 or 60000.
+ * @param[in] planes Array of audio plane pointers.
+ * @param[in] planeCount Number of entries in planes.
+ * @param[in] sampleCount Number of samples per channel in the planes.
  * @return      0 - Success
  * @return      < 0 - Error
  */
