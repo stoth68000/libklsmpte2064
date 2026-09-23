@@ -101,6 +101,32 @@ int klsmpte2064_context_alloc(void **hdl,
 	uint32_t stride,
 	uint32_t bitdepth);
 
+/**
+ * @brief	    Allocate a context for direct windowed-luma video input.
+ *
+ * This mode is intended for GPU or hardware pipelines that can efficiently
+ * extract the SMPTE 2064 windowed sub-sampling set themselves and submit it via
+ * klsmpte2064_video_push_wss_luma(). The context still owns video motion
+ * history, audio fingerprinting, and encapsulation state, but it does not
+ * allocate full-frame luma scratch buffers and does not accept
+ * klsmpte2064_video_push().
+ *
+ * Use klsmpte2064_video_get_wss_geometry() after allocation to get the exact
+ * source rows, columns, and prefilter taps required for the configured video
+ * dimensions.
+ *
+ * @param[out] hdl Receives the allocated context handle.
+ * @param[in] progressive Boolean. Currently only progressive video is supported.
+ * @param[in] width Video width in pixels.
+ * @param[in] height Video height in pixels.
+ * @return 0 on success.
+ * @return < 0 on error.
+ */
+int klsmpte2064_context_alloc_wss_luma(void **hdl,
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height);
+
 
 /**
  * @brief	    Raise (1) or lower (0) the overal level of console debug from the library.

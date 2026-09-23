@@ -122,6 +122,11 @@ static int alloc_yuv_context(void **hdl)
 	return alloc_context(hdl, COLORSPACE_YUV420P, 1280, 720, 1280, 8);
 }
 
+static int alloc_wss_context(void **hdl)
+{
+	return klsmpte2064_context_alloc_wss_luma(hdl, 1, 1280, 720);
+}
+
 static int push_three_video_frames(void *hdl,
 	uint8_t *frame,
 	size_t frame_size)
@@ -132,6 +137,23 @@ static int push_three_video_frames(void *hdl,
 	memset(frame, 0xff, frame_size);
 	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
 	return 0;
+}
+
+static void fill_luma_pattern(uint8_t *frame,
+	uint32_t width,
+	uint32_t height,
+	uint32_t stride,
+	uint8_t seed)
+{
+	for (uint32_t y = 0; y < height; y++) {
+		uint8_t *line = frame + (y * stride);
+		for (uint32_t x = 0; x < width; x++) {
+			line[x] = (uint8_t)((x * 3 + y * 5 + seed * 37) & 0xff);
+		}
+		for (uint32_t x = width; x < stride; x++) {
+			line[x] = 0xee;
+		}
+	}
 }
 
 static void fill_wss_samples(uint8_t samples[KLSMPTE2064_WSS_ROWS]
@@ -155,6 +177,38 @@ static int push_three_wss_sample_frames(void *hdl)
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
 	fill_wss_samples(samples, 0xff);
 	EXPECT_EQ_INT(0, klsmpte2064_video_push_wss_luma(hdl, samples));
+	return 0;
+}
+
+static int extract_wss_samples_from_yuv(
+	const uint8_t *frame,
+	uint32_t width,
+	uint32_t stride,
+	const struct klsmpte2064_video_wss_geometry *geometry,
+	uint8_t samples[KLSMPTE2064_WSS_ROWS][KLSMPTE2064_WSS_SAMPLES_PER_ROW])
+{
+	for (uint32_t r = 0; r < geometry->row_count; r++) {
+		const uint8_t *line = frame + ((uint32_t)geometry->rows[r] * stride);
+		for (uint32_t c = 0; c < geometry->samples_per_row; c++) {
+			if (geometry->prefilter_tap_count == 0) {
+				samples[r][c] = line[geometry->columns[c]];
+				continue;
+			}
+
+			int sum = 0;
+			int count = 0;
+			for (uint32_t tap = 0; tap < geometry->prefilter_tap_count; tap++) {
+				const int x = geometry->columns[c] +
+					geometry->prefilter_offsets[tap];
+				if (x >= 0 && x < (int)width) {
+					sum += line[x];
+					count++;
+				}
+			}
+			EXPECT_TRUE(count > 0);
+			samples[r][c] = (uint8_t)(sum / count);
+		}
+	}
 	return 0;
 }
 
@@ -318,6 +372,24 @@ static int test_context_api(void)
 	klsmpte2064_context_free(hdl);
 	klsmpte2064_context_free(NULL);
 
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_alloc_wss_luma(NULL,
+		1,
+		1280,
+		720));
+
+	hdl = (void *)0x1;
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_context_alloc_wss_luma(&hdl,
+		0,
+		1280,
+		720));
+	EXPECT_TRUE(hdl == NULL);
+
+	hdl = NULL;
+	EXPECT_EQ_INT(0, alloc_wss_context(&hdl));
+	EXPECT_TRUE(hdl != NULL);
+	EXPECT_EQ_INT(0, klsmpte2064_context_set_verbose(hdl, 0));
+	klsmpte2064_context_free(hdl);
+
 	hdl = NULL;
 	EXPECT_EQ_INT(0,
 		alloc_context(&hdl,
@@ -409,10 +481,11 @@ static int test_wss_luma_golden_video_sections(void)
 	uint8_t section[256] = {0};
 	uint32_t used_length = 0;
 
-	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+	EXPECT_EQ_INT(0, alloc_wss_context(&hdl));
 
 	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_push_wss_luma(NULL, samples));
 	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_push_wss_luma(hdl, NULL));
+	EXPECT_EQ_INT(-EINVAL, klsmpte2064_video_push(hdl, &samples[0][0]));
 	EXPECT_EQ_INT(0, push_three_wss_sample_frames(hdl));
 
 	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
@@ -462,6 +535,91 @@ static int test_wss_geometry_api(void)
 		geometry.columns[KLSMPTE2064_WSS_SAMPLES_PER_ROW - 1]);
 
 	klsmpte2064_context_free(hdl);
+	return 0;
+}
+
+static int test_wss_luma_matches_yuv420p_for_supported_dimensions(void)
+{
+	struct format_case {
+		uint32_t width;
+		uint32_t height;
+	};
+	const struct format_case cases[] = {
+		{1280, 720},
+		{1920, 1080},
+		{2048, 1080},
+		{3840, 2160},
+		{4096, 2160},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		void *yuv_hdl = NULL;
+		void *wss_hdl = NULL;
+		struct klsmpte2064_video_wss_geometry geometry = {0};
+		uint8_t samples[KLSMPTE2064_WSS_ROWS]
+			[KLSMPTE2064_WSS_SAMPLES_PER_ROW] = {{0}};
+		uint8_t yuv_section[256] = {0};
+		uint8_t wss_section[256] = {0};
+		uint32_t yuv_used_length = 0;
+		uint32_t wss_used_length = 0;
+		const uint32_t width = cases[i].width;
+		const uint32_t height = cases[i].height;
+		const uint32_t stride = width + 32;
+		const size_t frame_size = (size_t)stride * height;
+		uint8_t *frame = calloc(1, frame_size);
+
+		EXPECT_TRUE(frame != NULL);
+		EXPECT_EQ_INT(0,
+			alloc_context(&yuv_hdl,
+				COLORSPACE_YUV420P,
+				width,
+				height,
+				stride,
+				8));
+		EXPECT_EQ_INT(0,
+			klsmpte2064_context_alloc_wss_luma(&wss_hdl,
+				1,
+				width,
+				height));
+		EXPECT_EQ_INT(0,
+			klsmpte2064_video_get_wss_geometry(wss_hdl, &geometry));
+
+		for (uint8_t seed = 1; seed <= 3; seed++) {
+			fill_luma_pattern(frame, width, height, stride, seed);
+			EXPECT_EQ_INT(0, klsmpte2064_video_push(yuv_hdl, frame));
+			EXPECT_EQ_INT(0,
+				extract_wss_samples_from_yuv(frame,
+					width,
+					stride,
+					&geometry,
+					samples));
+			EXPECT_EQ_INT(0,
+				klsmpte2064_video_push_wss_luma(wss_hdl, samples));
+		}
+
+		EXPECT_EQ_INT(0,
+			pack_section(yuv_hdl,
+				yuv_section,
+				sizeof(yuv_section),
+				&yuv_used_length));
+		EXPECT_EQ_INT(0,
+			pack_section(wss_hdl,
+				wss_section,
+				sizeof(wss_section),
+				&wss_used_length));
+		EXPECT_TRUE(verify_checksum(yuv_section, yuv_used_length));
+		EXPECT_TRUE(verify_checksum(wss_section, wss_used_length));
+		EXPECT_EQ_INT(0,
+			expect_bytes(yuv_section,
+				yuv_used_length,
+				wss_section,
+				wss_used_length));
+
+		klsmpte2064_context_free(yuv_hdl);
+		klsmpte2064_context_free(wss_hdl);
+		free(frame);
+	}
+
 	return 0;
 }
 
@@ -828,6 +986,8 @@ int main(void)
 		{ "direct WSS luma golden video sections",
 			test_wss_luma_golden_video_sections },
 		{ "WSS geometry API", test_wss_geometry_api },
+		{ "direct WSS luma matches YUV420P supported dimensions",
+			test_wss_luma_matches_yuv420p_for_supported_dimensions },
 		{ "YUV420P golden audio section", test_yuv420p_golden_audio_section },
 		{ "YUV420P video and encapsulation validation",
 			test_video_api_yuv420p_and_encapsulation_validation },

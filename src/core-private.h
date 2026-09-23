@@ -50,6 +50,7 @@ struct ctx_s
     
 	/* */
 	enum klsmpte2064_colorspace_e colorspace; // 1 = YUV420P, 2 = V210
+	int direct_wss_luma;
 	uint8_t *y_csc; 
 	uint8_t *y; 
 	uint32_t ystride;

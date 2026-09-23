@@ -139,6 +139,9 @@ int klsmpte2064_video_push(void *hdl, const uint8_t *lumaplane)
 	if (!ctx || !lumaplane) {
 		return -EINVAL;
 	}
+	if (ctx->direct_wss_luma) {
+		return -EINVAL;
+	}
 
 	if (ctx->colorspace == COLORSPACE_YUV420P) {
 		return _video_push_yuv420p(ctx, lumaplane, ctx->inputstride);

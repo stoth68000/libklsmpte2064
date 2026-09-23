@@ -6,13 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-int klsmpte2064_context_alloc(void **hdl,
+static int context_alloc_common(void **hdl,
 	enum klsmpte2064_colorspace_e colorspace,
 	uint32_t progressive,
 	uint32_t width,
 	uint32_t height,
 	uint32_t stride,
-	uint32_t bitdepth)
+	uint32_t bitdepth,
+	int direct_wss_luma)
 {
 	struct ctx_s *ctx = NULL;
 	int ret = 0;
@@ -22,14 +23,20 @@ int klsmpte2064_context_alloc(void **hdl,
 	}
 	*hdl = NULL;
 
-	if (!colorspace || colorspace >= COLORSPACE_MAX ||
-		!width || !height || !stride ||
-		(bitdepth != 8 && bitdepth != 10) || progressive != 1) {
+	if (!width || !height || progressive != 1) {
 		return -EINVAL;
 	}
-	if ((colorspace == COLORSPACE_YUV420P && bitdepth != 8) ||
-		(colorspace == COLORSPACE_V210 && bitdepth != 10)) {
-		return -EINVAL;
+	if (direct_wss_luma) {
+		if (colorspace != COLORSPACE_UNDEFINED || stride != 0 || bitdepth != 8) {
+			return -EINVAL;
+		}
+	} else {
+		if (!colorspace || colorspace >= COLORSPACE_MAX ||
+			!stride || (bitdepth != 8 && bitdepth != 10) ||
+			(colorspace == COLORSPACE_YUV420P && bitdepth != 8) ||
+			(colorspace == COLORSPACE_V210 && bitdepth != 10)) {
+			return -EINVAL;
+		}
 	}
 
 	ctx = calloc(1, sizeof(*ctx));
@@ -37,19 +44,8 @@ int klsmpte2064_context_alloc(void **hdl,
 		return -ENOMEM;
 	}
 
-	ctx->ystride = width;
-	ctx->y = malloc(width * height);
-	if (!ctx->y) {
-		ret = -ENOMEM;
-		goto fail;
-	}
-	ctx->y_csc = malloc(width * height);
-	if (!ctx->y_csc) {
-		ret = -ENOMEM;
-		goto fail;
-	}
-
 	ctx->colorspace = colorspace;
+	ctx->direct_wss_luma = direct_wss_luma;
 	ctx->width = width;
 	ctx->height = height;
 	ctx->bitdepth = bitdepth;
@@ -57,6 +53,20 @@ int klsmpte2064_context_alloc(void **hdl,
 	ctx->progressive = progressive;
 	ctx->per_pixel_motion_threshold = 32;
 	ctx->audioMaxSampleCount = 2200;
+
+	if (!direct_wss_luma) {
+		ctx->ystride = width;
+		ctx->y = malloc(width * height);
+		if (!ctx->y) {
+			ret = -ENOMEM;
+			goto fail;
+		}
+		ctx->y_csc = malloc(width * height);
+		if (!ctx->y_csc) {
+			ret = -ENOMEM;
+			goto fail;
+		}
+	}
 
 	ctx->t1 = lookupTable1(progressive, width, height);
 	if (!ctx->t1) {
@@ -100,6 +110,39 @@ int klsmpte2064_context_alloc(void **hdl,
 fail:
 	klsmpte2064_context_free(ctx);
 	return ret;
+}
+
+int klsmpte2064_context_alloc(void **hdl,
+	enum klsmpte2064_colorspace_e colorspace,
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height,
+	uint32_t stride,
+	uint32_t bitdepth)
+{
+	return context_alloc_common(hdl,
+		colorspace,
+		progressive,
+		width,
+		height,
+		stride,
+		bitdepth,
+		0);
+}
+
+int klsmpte2064_context_alloc_wss_luma(void **hdl,
+	uint32_t progressive,
+	uint32_t width,
+	uint32_t height)
+{
+	return context_alloc_common(hdl,
+		COLORSPACE_UNDEFINED,
+		progressive,
+		width,
+		height,
+		0,
+		8,
+		1);
 }
 
 void klsmpte2064_context_free(void *hdl)
