@@ -415,7 +415,13 @@ int klsmpte2064_audio_push(void *hdl, enum klsmpte2064_audio_type_e type,
 	const int16_t *planes[], uint32_t planeCount, uint32_t sampleCount)
 {
 	struct ctx_s *ctx = (struct ctx_s *)hdl;
-	if (!ctx || !planeCount || type >= AUDIOTYPE_MAX) {
+	if (!ctx || !planes || !planeCount || !sampleCount || type >= AUDIOTYPE_MAX) {
+		return -EINVAL;
+	}
+	if ((type == AUDIOTYPE_STEREO_S16P && planeCount != 2) ||
+		((type == AUDIOTYPE_STEREO_S32_CH16_DECKLINK ||
+		  type == AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK) &&
+		 planeCount != 1)) {
 		return -EINVAL;
 	}
 	for (int i = 0; i < planeCount; i++) {

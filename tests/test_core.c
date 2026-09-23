@@ -48,6 +48,23 @@
 		}                                                                     \
 	} while (0)
 
+static const uint8_t GOLDEN_YUV_VIDEO_SECTION[] = {
+	0x00, 0x00, 0x0b, 0x7e, 0xf8, 0xe2, 0x4b, 0x4c, 0xe9, 0xf0, 0x2d,
+};
+static const uint8_t GOLDEN_YUV_VIDEO_SECTION_SEQ2[] = {
+	0x00, 0x01, 0x0b, 0x7e, 0xf8, 0xe2, 0x4b, 0x4c, 0xe9, 0xf0, 0x2c,
+};
+static const uint8_t GOLDEN_YUV_AUDIO_SECTION[] = {
+	0x00, 0x00, 0x18, 0x7f, 0xf8, 0xe2, 0x4b, 0x4c,
+	0xe9, 0xf0, 0x1a, 0x02, 0x17, 0x00, 0x00, 0x0a,
+	0x17, 0x00, 0x00, 0x15, 0x17, 0x00, 0x00, 0x9f,
+};
+static const uint8_t GOLDEN_YUV_AUDIO_SECTION_SEQ2[] = {
+	0x00, 0x01, 0x18, 0x7f, 0xf8, 0xe2, 0x4b, 0x4c,
+	0xe9, 0xf0, 0x1a, 0x02, 0x17, 0x00, 0x00, 0x0a,
+	0x17, 0x00, 0x00, 0x15, 0x17, 0x00, 0x00, 0x9e,
+};
+
 static uint32_t pack_v210_word(uint32_t a, uint32_t b, uint32_t c)
 {
 	return (a & 0x3ff) | ((b & 0x3ff) << 10) | ((c & 0x3ff) << 20);
@@ -63,15 +80,131 @@ static int verify_checksum(const uint8_t *data, uint32_t used_length)
 	return (sum & 0xff) == 0;
 }
 
-static int alloc_yuv_context(void **hdl)
+static int expect_bytes(const uint8_t *expected,
+	uint32_t expected_length,
+	const uint8_t *actual,
+	uint32_t actual_length)
+{
+	EXPECT_EQ_INT((int)expected_length, (int)actual_length);
+	if (memcmp(expected, actual, expected_length) != 0) {
+		fprintf(stderr, "byte mismatch\nexpected:");
+		for (uint32_t i = 0; i < expected_length; i++) {
+			fprintf(stderr, " %02x", expected[i]);
+		}
+		fprintf(stderr, "\nactual:  ");
+		for (uint32_t i = 0; i < actual_length; i++) {
+			fprintf(stderr, " %02x", actual[i]);
+		}
+		fprintf(stderr, "\n");
+		return 1;
+	}
+	return 0;
+}
+
+static int alloc_context(void **hdl,
+	enum klsmpte2064_colorspace_e colorspace,
+	uint32_t width,
+	uint32_t height,
+	uint32_t stride,
+	uint32_t bitdepth)
 {
 	return klsmpte2064_context_alloc(hdl,
-		COLORSPACE_YUV420P,
+		colorspace,
 		1,
-		1280,
-		720,
-		1280,
-		8);
+		width,
+		height,
+		stride,
+		bitdepth);
+}
+
+static int alloc_yuv_context(void **hdl)
+{
+	return alloc_context(hdl, COLORSPACE_YUV420P, 1280, 720, 1280, 8);
+}
+
+static int push_three_video_frames(void *hdl,
+	uint8_t *frame,
+	size_t frame_size)
+{
+	memset(frame, 0x00, frame_size);
+	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
+	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
+	memset(frame, 0xff, frame_size);
+	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
+	return 0;
+}
+
+static int pack_section(void *hdl,
+	uint8_t *section,
+	uint32_t section_size,
+	uint32_t *used_length)
+{
+	memset(section, 0, section_size);
+	*used_length = 0;
+	return klsmpte2064_encapsulation_pack(hdl,
+		section,
+		section_size,
+		used_length);
+}
+
+static int fill_audio_fixture(int16_t *left,
+	int16_t *right,
+	int32_t *decklink,
+	int sample_count,
+	int decklink_channels)
+{
+	for (int i = 0; i < sample_count; i++) {
+		left[i] = (int16_t)((i % 200) - 100);
+		right[i] = (int16_t)(100 - (i % 200));
+		decklink[(i * decklink_channels) + 0] = ((int32_t)left[i]) << 16;
+		decklink[(i * decklink_channels) + 1] = ((int32_t)right[i]) << 16;
+		decklink[(i * decklink_channels) + 2] = ((int32_t)left[i] / 2) << 16;
+		decklink[(i * decklink_channels) + 4] = ((int32_t)right[i] / 2) << 16;
+		decklink[(i * decklink_channels) + 5] = ((int32_t)left[i] / 3) << 16;
+	}
+	return 0;
+}
+
+static int push_all_current_audio_types(void *hdl)
+{
+	enum { SAMPLE_COUNT = 800, DECKLINK_CHANNELS = 16 };
+	int16_t left[SAMPLE_COUNT] = {0};
+	int16_t right[SAMPLE_COUNT] = {0};
+	int32_t decklink[SAMPLE_COUNT * DECKLINK_CHANNELS] = {0};
+	const int16_t *stereo_planes[2] = {left, right};
+	const int16_t *decklink_planes[1] = {(const int16_t *)decklink};
+
+	fill_audio_fixture(left,
+		right,
+		decklink,
+		SAMPLE_COUNT,
+		DECKLINK_CHANNELS);
+
+	EXPECT_EQ_INT(0,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S16P,
+			1001,
+			60000,
+			stereo_planes,
+			2,
+			SAMPLE_COUNT));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S32_CH16_DECKLINK,
+			1001,
+			60000,
+			decklink_planes,
+			1,
+			SAMPLE_COUNT));
+	EXPECT_EQ_INT(0,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK,
+			1001,
+			60000,
+			decklink_planes,
+			1,
+			SAMPLE_COUNT));
+	return 0;
 }
 
 static int test_context_api(void)
@@ -90,6 +223,17 @@ static int test_context_api(void)
 	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_context_alloc(&hdl,
 			COLORSPACE_UNDEFINED,
+			1,
+			1280,
+			720,
+			1280,
+			8));
+	EXPECT_TRUE(hdl == NULL);
+
+	hdl = (void *)0x1;
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_context_alloc(&hdl,
+			COLORSPACE_MAX,
 			1,
 			1280,
 			720,
@@ -130,6 +274,17 @@ static int test_context_api(void)
 			10));
 	EXPECT_TRUE(hdl == NULL);
 
+	hdl = (void *)0x1;
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_context_alloc(&hdl,
+			COLORSPACE_V210,
+			1,
+			1280,
+			720,
+			1280 * 8 / 3,
+			8));
+	EXPECT_TRUE(hdl == NULL);
+
 	hdl = NULL;
 	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
 	EXPECT_TRUE(hdl != NULL);
@@ -141,9 +296,8 @@ static int test_context_api(void)
 
 	hdl = NULL;
 	EXPECT_EQ_INT(0,
-		klsmpte2064_context_alloc(&hdl,
+		alloc_context(&hdl,
 			COLORSPACE_V210,
-			1,
 			1280,
 			720,
 			1280 * 8 / 3,
@@ -154,7 +308,80 @@ static int test_context_api(void)
 	return 0;
 }
 
-static int test_video_api_yuv420p_and_encapsulation(void)
+static int test_yuv420p_golden_video_sections(void)
+{
+	void *hdl = NULL;
+	const uint32_t width = 1280;
+	const uint32_t height = 720;
+	const uint32_t stride = width;
+	const size_t frame_size = (size_t)stride * height;
+	uint8_t *frame = calloc(1, frame_size);
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+
+	EXPECT_TRUE(frame != NULL);
+	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, frame_size));
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION),
+			section,
+			used_length));
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION_SEQ2,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION_SEQ2),
+			section,
+			used_length));
+
+	klsmpte2064_context_free(hdl);
+	free(frame);
+	return 0;
+}
+
+static int test_yuv420p_golden_audio_section(void)
+{
+	void *hdl = NULL;
+	const uint32_t width = 1280;
+	const uint32_t height = 720;
+	const uint32_t stride = width;
+	const size_t frame_size = (size_t)stride * height;
+	uint8_t *frame = calloc(1, frame_size);
+	uint8_t section[256] = {0};
+	uint32_t used_length = 0;
+
+	EXPECT_TRUE(frame != NULL);
+	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, frame_size));
+	EXPECT_EQ_INT(0, push_all_current_audio_types(hdl));
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_AUDIO_SECTION,
+			sizeof(GOLDEN_YUV_AUDIO_SECTION),
+			section,
+			used_length));
+
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
+	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_AUDIO_SECTION_SEQ2,
+			sizeof(GOLDEN_YUV_AUDIO_SECTION_SEQ2),
+			section,
+			used_length));
+
+	klsmpte2064_context_free(hdl);
+	free(frame);
+	return 0;
+}
+
+static int test_video_api_yuv420p_and_encapsulation_validation(void)
 {
 	void *hdl = NULL;
 	const uint32_t width = 1280;
@@ -203,24 +430,64 @@ static int test_video_api_yuv420p_and_encapsulation(void)
 			section,
 			sizeof(section),
 			&used_length));
-
-	memset(frame, 0xff, frame_size);
-	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
-	EXPECT_EQ_INT(0,
-		klsmpte2064_encapsulation_pack(hdl,
-			section,
-			sizeof(section),
-			&used_length));
-	EXPECT_TRUE(used_length > 0);
-	EXPECT_EQ_INT(used_length, section[2]);
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, frame_size));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
 	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(used_length, section[2]);
 
 	klsmpte2064_context_free(hdl);
 	free(frame);
 	return 0;
 }
 
-static int test_video_api_v210(void)
+static int test_supported_dimensions(void)
+{
+	struct format_case {
+		uint32_t width;
+		uint32_t height;
+	};
+	const struct format_case cases[] = {
+		{1280, 720},
+		{1920, 1080},
+		{2048, 1080},
+		{3840, 2160},
+		{4096, 2160},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		void *hdl = NULL;
+		const uint32_t stride = cases[i].width;
+		const size_t frame_size = (size_t)stride * cases[i].height;
+		uint8_t *frame = calloc(1, frame_size);
+		uint8_t section[256] = {0};
+		uint32_t used_length = 0;
+
+		EXPECT_TRUE(frame != NULL);
+		EXPECT_EQ_INT(0,
+			alloc_context(&hdl,
+				COLORSPACE_YUV420P,
+				cases[i].width,
+				cases[i].height,
+				stride,
+				8));
+		EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, frame_size));
+		EXPECT_EQ_INT(0,
+			pack_section(hdl, section, sizeof(section), &used_length));
+		EXPECT_TRUE(verify_checksum(section, used_length));
+		EXPECT_EQ_INT(0,
+			expect_bytes(GOLDEN_YUV_VIDEO_SECTION,
+				sizeof(GOLDEN_YUV_VIDEO_SECTION),
+				section,
+				used_length));
+
+		klsmpte2064_context_free(hdl);
+		free(frame);
+	}
+
+	return 0;
+}
+
+static int test_video_api_v210_golden_section(void)
 {
 	void *hdl = NULL;
 	const uint32_t width = 1280;
@@ -233,51 +500,43 @@ static int test_video_api_v210(void)
 
 	EXPECT_TRUE(frame != NULL);
 	EXPECT_EQ_INT(0,
-		klsmpte2064_context_alloc(&hdl,
+		alloc_context(&hdl,
 			COLORSPACE_V210,
-			1,
 			width,
 			height,
 			stride,
 			10));
 
-	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
-	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
-	memset(frame, 0xff, frame_size);
-	EXPECT_EQ_INT(0, klsmpte2064_video_push(hdl, frame));
-	EXPECT_EQ_INT(0,
-		klsmpte2064_encapsulation_pack(hdl,
-			section,
-			sizeof(section),
-			&used_length));
-	EXPECT_TRUE(used_length > 0);
+	EXPECT_EQ_INT(0, push_three_video_frames(hdl, frame, frame_size));
+	EXPECT_EQ_INT(0, pack_section(hdl, section, sizeof(section), &used_length));
 	EXPECT_TRUE(verify_checksum(section, used_length));
+	EXPECT_EQ_INT(0,
+		expect_bytes(GOLDEN_YUV_VIDEO_SECTION,
+			sizeof(GOLDEN_YUV_VIDEO_SECTION),
+			section,
+			used_length));
 
 	klsmpte2064_context_free(hdl);
 	free(frame);
 	return 0;
 }
 
-static int test_audio_api_current_use_cases(void)
+static int test_audio_api_current_use_cases_and_edges(void)
 {
 	void *hdl = NULL;
-	enum { SAMPLE_COUNT = 800, DECKLINK_CHANNELS = 16 };
-	int16_t left[SAMPLE_COUNT] = {0};
-	int16_t right[SAMPLE_COUNT] = {0};
-	int32_t decklink[SAMPLE_COUNT * DECKLINK_CHANNELS] = {0};
-	const int16_t *stereo_planes[2] = { left, right };
-	const int16_t *bad_planes[2] = { left, NULL };
-	const int16_t *decklink_planes[1] = { (const int16_t *)decklink };
+	enum { SAMPLE_COUNT = 800, LARGE_SAMPLE_COUNT = 2300, DECKLINK_CHANNELS = 16 };
+	int16_t left[LARGE_SAMPLE_COUNT] = {0};
+	int16_t right[LARGE_SAMPLE_COUNT] = {0};
+	int32_t decklink[LARGE_SAMPLE_COUNT * DECKLINK_CHANNELS] = {0};
+	const int16_t *stereo_planes[2] = {left, right};
+	const int16_t *bad_planes[2] = {left, NULL};
+	const int16_t *decklink_planes[1] = {(const int16_t *)decklink};
 
-	for (int i = 0; i < SAMPLE_COUNT; i++) {
-		left[i] = (int16_t)((i % 200) - 100);
-		right[i] = (int16_t)(100 - (i % 200));
-		decklink[(i * DECKLINK_CHANNELS) + 0] = ((int32_t)left[i]) << 16;
-		decklink[(i * DECKLINK_CHANNELS) + 1] = ((int32_t)right[i]) << 16;
-		decklink[(i * DECKLINK_CHANNELS) + 2] = ((int32_t)left[i] / 2) << 16;
-		decklink[(i * DECKLINK_CHANNELS) + 4] = ((int32_t)right[i] / 2) << 16;
-		decklink[(i * DECKLINK_CHANNELS) + 5] = ((int32_t)left[i] / 3) << 16;
-	}
+	fill_audio_fixture(left,
+		right,
+		decklink,
+		LARGE_SAMPLE_COUNT,
+		DECKLINK_CHANNELS);
 
 	EXPECT_EQ_INT(0, alloc_yuv_context(&hdl));
 
@@ -289,7 +548,14 @@ static int test_audio_api_current_use_cases(void)
 			stereo_planes,
 			2,
 			SAMPLE_COUNT));
-
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S16P,
+			1001,
+			60000,
+			NULL,
+			2,
+			SAMPLE_COUNT));
 	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_audio_push(hdl,
 			AUDIOTYPE_STEREO_S16P,
@@ -298,7 +564,22 @@ static int test_audio_api_current_use_cases(void)
 			bad_planes,
 			2,
 			SAMPLE_COUNT));
-
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S16P,
+			1001,
+			60000,
+			stereo_planes,
+			1,
+			SAMPLE_COUNT));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S32_CH16_DECKLINK,
+			1001,
+			60000,
+			stereo_planes,
+			2,
+			SAMPLE_COUNT));
 	EXPECT_EQ_INT(-EINVAL,
 		klsmpte2064_audio_push(hdl,
 			AUDIOTYPE_STEREO_S16P,
@@ -307,6 +588,22 @@ static int test_audio_api_current_use_cases(void)
 			stereo_planes,
 			2,
 			SAMPLE_COUNT));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_STEREO_S16P,
+			1001,
+			60000,
+			stereo_planes,
+			2,
+			0));
+	EXPECT_EQ_INT(-EINVAL,
+		klsmpte2064_audio_push(hdl,
+			AUDIOTYPE_MAX,
+			1001,
+			60000,
+			stereo_planes,
+			2,
+			SAMPLE_COUNT));
 
 	EXPECT_EQ_INT(0,
 		klsmpte2064_audio_push(hdl,
@@ -316,7 +613,6 @@ static int test_audio_api_current_use_cases(void)
 			stereo_planes,
 			2,
 			SAMPLE_COUNT));
-
 	EXPECT_EQ_INT(0,
 		klsmpte2064_audio_push(hdl,
 			AUDIOTYPE_STEREO_S32_CH16_DECKLINK,
@@ -325,7 +621,6 @@ static int test_audio_api_current_use_cases(void)
 			decklink_planes,
 			1,
 			SAMPLE_COUNT));
-
 	EXPECT_EQ_INT(0,
 		klsmpte2064_audio_push(hdl,
 			AUDIOTYPE_SMPTE312_S32_CH16_DECKLINK,
@@ -334,15 +629,14 @@ static int test_audio_api_current_use_cases(void)
 			decklink_planes,
 			1,
 			SAMPLE_COUNT));
-
-	EXPECT_EQ_INT(-EINVAL,
+	EXPECT_EQ_INT(0,
 		klsmpte2064_audio_push(hdl,
-			AUDIOTYPE_MAX,
+			AUDIOTYPE_STEREO_S16P,
 			1001,
 			60000,
 			stereo_planes,
 			2,
-			SAMPLE_COUNT));
+			LARGE_SAMPLE_COUNT));
 
 	klsmpte2064_context_free(hdl);
 	return 0;
@@ -396,34 +690,53 @@ static int test_csc_api(void)
 	return 0;
 }
 
+typedef int (*test_fn)(void);
+
+struct test_case {
+	const char *name;
+	test_fn fn;
+};
+
 int main(void)
 {
-	int ret = 0;
+	const struct test_case tests[] = {
+		{ "context API validation", test_context_api },
+		{ "YUV420P golden video sections", test_yuv420p_golden_video_sections },
+		{ "YUV420P golden audio section", test_yuv420p_golden_audio_section },
+		{ "YUV420P video and encapsulation validation",
+			test_video_api_yuv420p_and_encapsulation_validation },
+		{ "supported progressive dimensions", test_supported_dimensions },
+		{ "V210 golden video section", test_video_api_v210_golden_section },
+		{ "audio API current use cases and edges",
+			test_audio_api_current_use_cases_and_edges },
+		{ "V210 colorspace conversion helpers", test_csc_api },
+	};
+	int passed = 0;
+	int failed = 0;
 
-	ret = test_context_api();
-	if (ret != 0) {
-		return ret;
+	printf("Running %zu libklsmpte2064 API checks\n",
+		sizeof(tests) / sizeof(tests[0]));
+	for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
+		printf("CHECK %zu/%zu: %s ... ",
+			i + 1,
+			sizeof(tests) / sizeof(tests[0]),
+			tests[i].name);
+		fflush(stdout);
+
+		const int ret = tests[i].fn();
+		if (ret == 0) {
+			printf("PASS\n");
+			passed++;
+		} else {
+			printf("FAIL\n");
+			failed++;
+		}
 	}
 
-	ret = test_video_api_yuv420p_and_encapsulation();
-	if (ret != 0) {
-		return ret;
-	}
+	printf("Summary: total=%d passed=%d failed=%d\n",
+		passed + failed,
+		passed,
+		failed);
 
-	ret = test_video_api_v210();
-	if (ret != 0) {
-		return ret;
-	}
-
-	ret = test_audio_api_current_use_cases();
-	if (ret != 0) {
-		return ret;
-	}
-
-	ret = test_csc_api();
-	if (ret != 0) {
-		return ret;
-	}
-
-	return 0;
+	return failed == 0 ? 0 : 1;
 }
